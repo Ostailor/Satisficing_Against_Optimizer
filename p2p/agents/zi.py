@@ -15,7 +15,8 @@ class ZIConstrained(Prosumer):
         _ = t
         price = random.uniform(10.0, 25.0)
         qty = 0.5
-        side: Side = random.choice(["buy", "sell"])  # type: ignore[assignment]
+        choices: tuple[Side, Side] = ("buy", "sell")
+        side: Side = random.choice(choices)
         return (round(price, 1), qty, side)
 
     def decide(self, order_book_snapshot: dict, t: int) -> str:
