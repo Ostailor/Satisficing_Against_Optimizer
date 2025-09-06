@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, Literal, Optional, Tuple
+from typing import Literal
 
 Side = Literal["buy", "sell"]
 
@@ -18,9 +18,9 @@ class Prosumer:
     has_battery: bool = False
     soc: float = 0.0  # state of charge [0,1]
     net_position_kwh: float = 0.0
-    params: Dict[str, float] = field(default_factory=dict)
+    params: dict[str, float] = field(default_factory=dict)
 
-    def make_quote(self, t: int) -> Optional[Tuple[float, float, Side]]:
+    def make_quote(self, t: int) -> tuple[float, float, Side] | None:
         """Produce a minimal quote: (price c/kWh, quantity kWh, side) or None.
 
         Smoke-run heuristic: alternate sides and small quantities.
@@ -30,11 +30,10 @@ class Prosumer:
             return (15.0, qty, "sell")
         return (17.0, qty, "buy")
 
-    def decide(self, order_book_snapshot: Dict, t: int) -> str:
+    def decide(self, order_book_snapshot: dict, t: int) -> str:
         """Decide on action based on a snapshot. Smoke-run is idle/post only.
 
         Returns an action label for logging.
         """
         _ = order_book_snapshot
         return "post"
-

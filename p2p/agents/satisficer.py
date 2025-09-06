@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Dict
+ 
 
 from .prosumer import Prosumer
 
@@ -14,7 +14,6 @@ class Satisficer(Prosumer):
     tau_percent: float = 5.0
     k_max: int = 3
 
-    def decide(self, order_book_snapshot: Dict, t: int) -> str:
+    def decide(self, order_book_snapshot: dict, t: int) -> str:
         _ = order_book_snapshot, t
         return "post"
-

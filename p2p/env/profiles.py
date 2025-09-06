@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from typing import List
+ 
 
 
-def diurnal_load_profile(minutes: int = 24 * 60, step_min: int = 5) -> List[float]:
+def diurnal_load_profile(minutes: int = 24 * 60, step_min: int = 5) -> list[float]:
     """Toy diurnal load shape: peaks at 8:00 and 19:00 (relative units).
 
     Returns kWh per interval for a 30 kWh/day household scaled roughly.
@@ -23,7 +23,7 @@ def diurnal_load_profile(minutes: int = 24 * 60, step_min: int = 5) -> List[floa
     return [v * scale for v in base]
 
 
-def clear_sky_pv_profile(minutes: int = 24 * 60, step_min: int = 5) -> List[float]:
+def clear_sky_pv_profile(minutes: int = 24 * 60, step_min: int = 5) -> list[float]:
     """Toy clear-sky PV production (kWh per interval) for 7.4 kW nameplate.
 
     Single bell curve centered at noon; purely illustrative for smoke.
@@ -37,4 +37,3 @@ def clear_sky_pv_profile(minutes: int = 24 * 60, step_min: int = 5) -> List[floa
         bell = math.exp(-((t - 12.0) ** 2) / 8.0)
         out.append(max(0.0, bell) * (7.4 * (step_min / 60.0)) * 0.5)
     return out
-

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Dict
+ 
 
 from .prosumer import Prosumer
 
@@ -12,7 +12,6 @@ class Optimizer(Prosumer):
     feasible matches or solve a small LP/knapsack-like step.
     """
 
-    def decide(self, order_book_snapshot: Dict, t: int) -> str:
+    def decide(self, order_book_snapshot: dict, t: int) -> str:
         _ = order_book_snapshot, t
         return "post"
-

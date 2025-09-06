@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List
 
 from ..agents.prosumer import Prosumer
 from .order_book import Order, OrderBook
@@ -13,7 +12,7 @@ class ClearingResult:
     volume_kwh: float
 
 
-def step_interval(t: int, agents: List[Prosumer], ob: OrderBook) -> ClearingResult:
+def step_interval(t: int, agents: list[Prosumer], ob: OrderBook) -> ClearingResult:
     """Smoke-mode interval step: collect quotes and do no-op matching.
 
     Later phases: price-time priority matching with maker-price rule.
@@ -31,4 +30,3 @@ def step_interval(t: int, agents: List[Prosumer], ob: OrderBook) -> ClearingResu
     volume = sum(o.qty_kwh for o in bids + asks)
     ob.clear_all()
     return ClearingResult(trades=0, volume_kwh=volume)
-

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import asdict
-from typing import List
 
 from ..agents.optimizer import Optimizer
 from ..agents.satisficer import Satisficer
@@ -17,7 +16,7 @@ def run_smoke(intervals: int = 2, n_agents: int = 4) -> RunSummary:
 
     Posts quotes and clears the book without matching; returns a summary.
     """
-    agents: List = []
+    agents: list = []
     # Mix of agent types
     for i in range(n_agents):
         if i % 3 == 0:
@@ -52,4 +51,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
