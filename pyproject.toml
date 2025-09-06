@@ -5,7 +5,7 @@ description = "Peer-to-peer electricity market simulator (CDA) with satisficing 
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
-authors = [ { name = "CS Honors Econ", email = "example@example.com" } ]
+authors = [ { name = "Om Tailor", email = "ostailor1234@gmail.com" } ]
 dependencies = [
   "numpy>=1.26",
   "pandas>=2.2",

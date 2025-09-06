@@ -6,16 +6,14 @@ from p2p.sim.profiling import time_call
 
 
 def _work() -> int:
-    # Make the baseline heavy enough that wrapper overhead is negligible
-    s = 0
-    for i in range(100_000):
-        s += i * i
-    return s
+    # Sleep-based workload to dominate wrapper overhead while keeping test fast
+    time.sleep(0.002)
+    return 1
 
 
 def test_timer_overhead_under_3_percent() -> None:
     # Baseline: call the work many times
-    n = 100
+    n = 50
     t0 = time.perf_counter()
     for _ in range(n):
         _ = _work()

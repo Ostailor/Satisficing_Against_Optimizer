@@ -26,7 +26,15 @@ Code layout
 - `p2p/market/`: order book and clearing logic.
 - `p2p/agents/`: prosumer + strategy agents (optimizer, satisficer, ZI, learner).
 - `p2p/env/`: profiles (load, PV) and device models (battery, EV charging).
-- `p2p/sim/`: runner, metrics, profiling utilities (instrumentation).
+- `p2p/sim/`: runner, metrics, profiling utilities (instrumentation), and analysis helpers.
+
+Analysis & metrics (Phase 5–6)
+- Per-interval metrics CSV (W, W_bound, Ŵ, price stats): set an env var and run smoke or experiments:
+  - `P2P_INTERVAL_METRICS=outputs/interval_metrics.csv python -m p2p.sim.run --smoke --intervals 12 --agents 10`
+- Quote-based welfare: implemented in `p2p/sim/metrics.py` (`compute_quote_welfare`, `planner_bound_quote_welfare`).
+- Analysis helpers in `p2p/sim/analysis.py`:
+  - `bootstrap_ci(values, n_boot=2000)`
+  - plotting functions: `plot_frontier`, `plot_scaling`, `plot_welfare_heatmap`.
 
 Development
 - Pre-commit hooks (ruff + mypy + hygiene):

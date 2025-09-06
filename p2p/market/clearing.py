@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from ..agents.prosumer import Prosumer
-from .order_book import OrderBook, Trade
+from .order_book import Order, OrderBook, Trade
 
 
 @dataclass
@@ -14,6 +14,10 @@ class ClearingResult:
     posted_buy_kwh: float
     posted_sell_kwh: float
     trades_detail: list[Trade]
+    posted_bids: list[Order]
+    posted_asks: list[Order]
+    book_bids_start: list[Order]
+    book_asks_start: list[Order]
 
 
 def step_interval(t: int, agents: list[Prosumer], ob: OrderBook) -> ClearingResult:
@@ -21,6 +25,32 @@ def step_interval(t: int, agents: list[Prosumer], ob: OrderBook) -> ClearingResu
     posted = 0.0
     posted_buy = 0.0
     posted_sell = 0.0
+    posted_bids: list[Order] = []
+    posted_asks: list[Order] = []
+    # Snapshot resting book at start of interval (before submissions) and deep-copy orders
+    _bids0, _asks0 = ob.snapshot()
+    book_bids_start = [
+        Order(
+            order_id=o.order_id,
+            price_cperkwh=o.price_cperkwh,
+            qty_kwh=o.qty_kwh,
+            side=o.side,
+            agent_id=o.agent_id,
+            arrival_seq=o.arrival_seq,
+        )
+        for o in _bids0
+    ]
+    book_asks_start = [
+        Order(
+            order_id=o.order_id,
+            price_cperkwh=o.price_cperkwh,
+            qty_kwh=o.qty_kwh,
+            side=o.side,
+            agent_id=o.agent_id,
+            arrival_seq=o.arrival_seq,
+        )
+        for o in _asks0
+    ]
     for a in agents:
         q = a.make_quote(t)
         if q is None:
@@ -29,8 +59,28 @@ def step_interval(t: int, agents: list[Prosumer], ob: OrderBook) -> ClearingResu
         posted += qty
         if side == "buy":
             posted_buy += qty
+            posted_bids.append(
+                Order(
+                    order_id=0,
+                    price_cperkwh=price,
+                    qty_kwh=qty,
+                    side=side,
+                    agent_id=a.agent_id,
+                    arrival_seq=0,
+                )
+            )
         else:
             posted_sell += qty
+            posted_asks.append(
+                Order(
+                    order_id=0,
+                    price_cperkwh=price,
+                    qty_kwh=qty,
+                    side=side,
+                    agent_id=a.agent_id,
+                    arrival_seq=0,
+                )
+            )
         _order_id, _trades = ob.submit(
             agent_id=a.agent_id,
             side=side,
@@ -48,4 +98,8 @@ def step_interval(t: int, agents: list[Prosumer], ob: OrderBook) -> ClearingResu
         posted_buy_kwh=posted_buy,
         posted_sell_kwh=posted_sell,
         trades_detail=interval_trades,
+        posted_bids=posted_bids,
+        posted_asks=posted_asks,
+        book_bids_start=book_bids_start,
+        book_asks_start=book_asks_start,
     )

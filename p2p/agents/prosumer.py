@@ -22,6 +22,7 @@ class Prosumer:
 
     agent_id: str
     step_min: int = 5
+    seed: int | None = None
 
     # Environment profiles (kWh for load/PV per interval; kW for EV power)
     load_kwh: list[float] | None = None
@@ -38,7 +39,7 @@ class Prosumer:
 
     def __post_init__(self) -> None:
         # Deterministic per-agent RNG (non-crypto)
-        seed = hash(self.agent_id) & 0xFFFF
+        seed = self.seed if self.seed is not None else (hash(self.agent_id) & 0xFFFF)
         rng = random.Random(seed)  # noqa: S311
         steps = 24 * 60 // self.step_min
         if self.load_kwh is None:

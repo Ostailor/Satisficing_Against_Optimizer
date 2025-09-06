@@ -12,7 +12,7 @@ from ..agents.satisficer import Satisficer
 from ..agents.zi import ZIConstrained
 from ..market.clearing import step_interval
 from ..market.order_book import OrderBook
-from .metrics import RunSummary
+from .metrics import RunSummary, compute_quote_welfare, planner_bound_quote_welfare
 from .profiling import process_mem_mb, time_call
 
 
@@ -41,6 +41,7 @@ def run_smoke(
     total_traded = 0.0
     run_id = "smoke"
     writer = None
+    interval_writer = None
     if instrument and metrics_out:
         os.makedirs(os.path.dirname(metrics_out) or ".", exist_ok=True)
         fh = open(metrics_out, mode="w", newline="")  # noqa: SIM115
@@ -59,6 +60,28 @@ def run_smoke(
                 "learners_steps",
                 "wall_ms",
                 "mem_mb",
+            ]
+        )
+    # Optional per-interval metrics CSV
+    interval_metrics_path = os.environ.get("P2P_INTERVAL_METRICS")
+    if interval_metrics_path:
+        os.makedirs(os.path.dirname(interval_metrics_path) or ".", exist_ok=True)
+        fh_int = open(interval_metrics_path, mode="w", newline="")  # noqa: SIM115
+        interval_writer = csv.writer(fh_int)
+        interval_writer.writerow(
+            [
+                "t",
+                "trades",
+                "traded_kwh",
+                "posted_buy_kwh",
+                "posted_sell_kwh",
+                "unserved_kwh",
+                "curtailment_kwh",
+                "price_mean",
+                "price_var",
+                "W",
+                "W_bound",
+                "W_hat",
             ]
         )
     try:
@@ -102,10 +125,56 @@ def run_smoke(
             result = step_interval(t=t, agents=agents, ob=ob)
             total_posted += result.posted_kwh
             total_traded += result.traded_kwh
+            if interval_writer is not None:
+                prices = [tr.price_cperkwh for tr in result.trades_detail]
+                price_mean = sum(prices) / len(prices) if prices else 0.0
+                price_var = (
+                    sum((p - price_mean) ** 2 for p in prices) / len(prices) if prices else 0.0
+                )
+                w = compute_quote_welfare(result.trades_detail)
+                # Planner bound using the union of starting resting book and new posts
+                bids_union = result.book_bids_start + result.posted_bids
+                asks_union = result.book_asks_start + result.posted_asks
+                w_bound, _ = planner_bound_quote_welfare(bids=bids_union, asks=asks_union)
+                w_hat = (w / w_bound) if w_bound > 0 else 0.0
+                # Debug: print if W_hat > 1 (should not happen)
+                if w_bound > 0 and w_hat > 1.000001:
+                    vol_bids0 = sum(o.qty_kwh for o in result.book_bids_start)
+                    vol_asks0 = sum(o.qty_kwh for o in result.book_asks_start)
+                    vol_bids_post = sum(o.qty_kwh for o in result.posted_bids)
+                    vol_asks_post = sum(o.qty_kwh for o in result.posted_asks)
+                    print(
+                        f"[DEBUG] t={t} W={w:.6f} W_bound={w_bound:.6f} W_hat={w_hat:.6f} "
+                        f"bids0={len(result.book_bids_start)}({vol_bids0:.6f}) "
+                        f"postsB={len(result.posted_bids)}({vol_bids_post:.6f}) "
+                        f"asks0={len(result.book_asks_start)}({vol_asks0:.6f}) "
+                        f"postsA={len(result.posted_asks)}({vol_asks_post:.6f})"
+                    )
+                unserved = max(0.0, result.posted_buy_kwh - result.traded_kwh)
+                curtail = max(0.0, result.posted_sell_kwh - result.traded_kwh)
+                interval_writer.writerow(
+                    [
+                        t,
+                        result.trades,
+                        f"{result.traded_kwh:.6f}",
+                        f"{result.posted_buy_kwh:.6f}",
+                        f"{result.posted_sell_kwh:.6f}",
+                        f"{unserved:.6f}",
+                        f"{curtail:.6f}",
+                        f"{price_mean:.6f}",
+                        f"{price_var:.6f}",
+                        f"{w:.6f}",
+                        f"{w_bound:.6f}",
+                        f"{w_hat:.6f}",
+                    ]
+                )
     finally:
         if writer is not None:
             with suppress(Exception):
                 fh.close()
+        if interval_writer is not None:
+            with suppress(Exception):
+                fh_int.close()
 
     return RunSummary(
         intervals=intervals,
