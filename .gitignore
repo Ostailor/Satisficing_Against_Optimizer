@@ -1,0 +1,15 @@
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.venv/
+dist/
+build/
+*.egg-info/
+outputs/
+*.DS_Store
+.idea/
+.vscode/
+AGENTS.md
+SPECS.md
+TASKS.md
+

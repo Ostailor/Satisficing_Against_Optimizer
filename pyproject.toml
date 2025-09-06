@@ -1,0 +1,56 @@
+[project]
+name = "p2p-market"
+version = "0.0.1"
+description = "Peer-to-peer electricity market simulator (CDA) with satisficing vs optimizing agents"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [ { name = "CS Honors Econ", email = "example@example.com" } ]
+dependencies = [
+  "numpy>=1.26",
+  "pandas>=2.2",
+  "matplotlib>=3.8",
+  "pyinstrument>=4.6",
+  "psutil>=5.9",
+  "mesa>=2.2",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.2",
+  "pytest-cov>=4.1",
+  "mypy>=1.10",
+  "ruff>=0.5.0",
+  "types-psutil",
+  "types-PyYAML",
+]
+opt = [
+  "numba>=0.59",
+  "scipy>=1.13",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+select = ["E","F","I","B","UP","SIM","N","S","A","C4"]
+ignore = ["S101","A003"]
+
+[tool.ruff.format]
+quote-style = "single"
+indent-style = "space"
+skip-magic-trailing-comma = false
+
+[tool.mypy]
+python_version = "3.11"
+strict = false
+warn_unused_ignores = true
+warn_redundant_casts = true
+no_implicit_optional = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["p2p/tests"]
