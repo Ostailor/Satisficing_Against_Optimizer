@@ -1,7 +1,5 @@
 from __future__ import annotations
 
- 
-
 
 def diurnal_load_profile(minutes: int = 24 * 60, step_min: int = 5) -> list[float]:
     """Toy diurnal load shape: peaks at 8:00 and 19:00 (relative units).
