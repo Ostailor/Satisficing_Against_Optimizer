@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import random
+from typing import Any
 
 from .prosumer import Prosumer, Side
 
@@ -19,6 +20,6 @@ class ZIConstrained(Prosumer):
         side: Side = random.choice(choices)
         return (round(price, 1), qty, side)
 
-    def decide(self, order_book_snapshot: dict, t: int) -> str:
+    def decide(self, order_book_snapshot: dict, t: int) -> dict[str, Any]:
         _ = order_book_snapshot, t
-        return "post"
+        return {"type": "post"}

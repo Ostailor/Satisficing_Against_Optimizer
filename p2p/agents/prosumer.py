@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import random
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import Any, Literal
 
 from ..env.devices import Battery
 from ..env.params import DEFAULTS
@@ -79,7 +79,7 @@ class Prosumer:
         side: Side = "buy" if net > 0 else "sell"
         return price, qty, side
 
-    def decide(self, order_book_snapshot: dict, t: int) -> str:
+    def decide(self, order_book_snapshot: dict, t: int) -> dict[str, Any]:
         """Decide on action based on a snapshot. Placeholder: always post."""
-        _ = order_book_snapshot
-        return "post"
+        _ = order_book_snapshot, t
+        return {"type": "post"}
