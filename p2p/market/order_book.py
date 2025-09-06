@@ -24,6 +24,8 @@ class Trade:
     sell_agent: str
     maker_order_id: int
     taker_order_id: int
+    bid_price_cperkwh: float
+    ask_price_cperkwh: float
 
 
 @dataclass
@@ -213,6 +215,8 @@ class OrderBook:
                         sell_agent=maker.agent_id,
                         maker_order_id=maker.order_id,
                         taker_order_id=incoming.order_id,
+                        bid_price_cperkwh=incoming.price_cperkwh,
+                        ask_price_cperkwh=maker.price_cperkwh,
                     )
                 )
                 self._trades.append(trades[-1])
@@ -238,6 +242,8 @@ class OrderBook:
                         sell_agent=incoming.agent_id,
                         maker_order_id=maker.order_id,
                         taker_order_id=incoming.order_id,
+                        bid_price_cperkwh=maker.price_cperkwh,
+                        ask_price_cperkwh=incoming.price_cperkwh,
                     )
                 )
                 self._trades.append(trades[-1])
