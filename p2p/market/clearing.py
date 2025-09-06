@@ -3,30 +3,33 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from ..agents.prosumer import Prosumer
-from .order_book import Order, OrderBook
+from .order_book import OrderBook
 
 
 @dataclass
 class ClearingResult:
     trades: int
-    volume_kwh: float
+    traded_kwh: float
+    posted_kwh: float
 
 
 def step_interval(t: int, agents: list[Prosumer], ob: OrderBook) -> ClearingResult:
-    """Smoke-mode interval step: collect quotes and do no-op matching.
-
-    Later phases: price-time priority matching with maker-price rule.
-    """
-    # Agents post one quote each
+    """One interval: agents submit quotes; CDA matches continuously (maker-price)."""
+    posted = 0.0
     for a in agents:
         q = a.make_quote(t)
         if q is None:
             continue
         price, qty, side = q
-        ob.insert(Order(price_cperkwh=price, qty_kwh=qty, side=side, agent_id=a.agent_id, ts=t))
+        posted += qty
+        _order_id, _trades = ob.submit(
+            agent_id=a.agent_id,
+            side=side,
+            price_cperkwh=price,
+            qty_kwh=qty,
+        )
+        # Trades accumulate inside the book; we aggregate below
 
-    # No matching in smoke; just clear the book for the next interval
-    bids, asks = ob.snapshot()
-    volume = sum(o.qty_kwh for o in bids + asks)
-    ob.clear_all()
-    return ClearingResult(trades=0, volume_kwh=volume)
+    interval_trades = ob.clear_trades()
+    traded = sum(tr.qty_kwh for tr in interval_trades)
+    return ClearingResult(trades=len(interval_trades), traded_kwh=traded, posted_kwh=posted)

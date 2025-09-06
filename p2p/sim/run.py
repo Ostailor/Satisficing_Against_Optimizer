@@ -14,7 +14,7 @@ from .metrics import RunSummary
 def run_smoke(intervals: int = 2, n_agents: int = 4) -> RunSummary:
     """Run a toy 2-interval simulation with 4 agents to verify wiring.
 
-    Posts quotes and clears the book without matching; returns a summary.
+    Posts quotes and matches continuously via CDA; returns a summary.
     """
     agents: list = []
     # Mix of agent types
@@ -28,11 +28,18 @@ def run_smoke(intervals: int = 2, n_agents: int = 4) -> RunSummary:
 
     ob = OrderBook()
     total_posted = 0.0
+    total_traded = 0.0
     for t in range(intervals):
         result = step_interval(t=t, agents=agents, ob=ob)
-        total_posted += result.volume_kwh
+        total_posted += result.posted_kwh
+        total_traded += result.traded_kwh
 
-    return RunSummary(intervals=intervals, agents=len(agents), posted_volume_kwh=total_posted)
+    return RunSummary(
+        intervals=intervals,
+        agents=len(agents),
+        posted_volume_kwh=total_posted,
+        traded_volume_kwh=total_traded,
+    )
 
 
 def main() -> None:
