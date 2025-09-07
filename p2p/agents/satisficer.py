@@ -43,10 +43,10 @@ class Satisficer(Prosumer):
             bids, asks = snapshot
         else:
             bids, asks = [], []
-        # Scan in arrival order (FIFO), as expected by decision-rule tests.
-        seq = list(asks if side == "buy" else bids)
-        seq.sort(key=lambda o: getattr(o, "arrival_seq", 0))
-        return seq
+        # Scan in the order provided by the order book, which is already
+        # price-time priority (best price first, FIFO within price).
+        # Avoid per-decision sorting overhead and align with CDA traversal.
+        return list(asks if side == "buy" else bids)
 
     def decide(self, order_book_snapshot: Any, t: int) -> dict[str, Any]:
         quote = self.make_quote(t)

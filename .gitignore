@@ -6,6 +6,7 @@ dist/
 build/
 *.egg-info/
 outputs/
+outputs_20250906-222930/
 *.DS_Store
 .idea/
 .vscode/
