@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 
 
@@ -14,19 +15,22 @@ def bootstrap_ci(
 ) -> tuple[float, float]:
     """Nonparametric bootstrap percentile CI for the mean of `values`.
 
+    Uses NumPy RNG for compatibility across pandas versions.
     Returns (lo, hi) bounds.
     """
-    rng = pd.util.random.RandomState(seed)
-    arr = pd.Series(list(values), dtype=float)
-    if len(arr) == 0:
+    arr = np.asarray(list(values), dtype=float)
+    arr = arr[~np.isnan(arr)]
+    if arr.size == 0:
         return (float("nan"), float("nan"))
-    boots = []
-    for _ in range(n_boot):
-        sample = arr.sample(n=len(arr), replace=True, random_state=rng)
-        boots.append(sample.mean())
-    lo = pd.Series(boots).quantile(alpha / 2)
-    hi = pd.Series(boots).quantile(1 - alpha / 2)
-    return float(lo), float(hi)
+    rng = np.random.default_rng(seed)
+    n = arr.size
+    boots = np.empty(n_boot, dtype=float)
+    for i in range(n_boot):
+        idx = rng.integers(0, n, size=n)
+        boots[i] = arr[idx].mean()
+    lo = float(np.quantile(boots, alpha / 2))
+    hi = float(np.quantile(boots, 1 - alpha / 2))
+    return lo, hi
 
 
 def load_interval_metrics(path: str) -> pd.DataFrame:

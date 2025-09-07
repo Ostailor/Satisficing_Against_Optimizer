@@ -4,7 +4,7 @@ from typing import Any, Literal
 
 from .prosumer import Prosumer
 
-Mode = Literal["band", "k_search"]
+Mode = Literal["band", "k_search", "k_greedy"]
 
 
 class Satisficer(Prosumer):
@@ -43,9 +43,9 @@ class Satisficer(Prosumer):
             bids, asks = snapshot
         else:
             bids, asks = [], []
+        # Scan in arrival order (FIFO), as expected by decision-rule tests.
         seq = list(asks if side == "buy" else bids)
-        # Sort by arrival order if available; otherwise stable order
-        seq.sort(key=lambda o: (0, o.arrival_seq) if hasattr(o, "arrival_seq") else (1, 0))
+        seq.sort(key=lambda o: getattr(o, "arrival_seq", 0))
         return seq
 
     def decide(self, order_book_snapshot: Any, t: int) -> dict[str, Any]:
@@ -63,7 +63,11 @@ class Satisficer(Prosumer):
                 price = getattr(o, "price_cperkwh", None) or o[0]
                 if q_price == 0:
                     continue
-                if abs(price - q_price) / q_price <= band:
+                crosses = (
+                    (side == "buy" and price <= q_price)
+                    or (side == "sell" and price >= q_price)
+                )
+                if crosses and abs(price - q_price) / q_price <= band:
                     oid = getattr(o, "order_id", None) or o[3]
                     qty = min(q_qty, getattr(o, "qty_kwh", None) or o[1])
                     return {
@@ -72,28 +76,66 @@ class Satisficer(Prosumer):
                         "qty_kwh": qty,
                         "offers_seen": offers_seen,
                         "price": price,
+                        "side": side,
                     }
             return {"type": "post", "offers_seen": offers_seen}
 
-        # K-search
-        best = None
-        k = max(1, int(self.k_max))
-        for o in opp[:k]:
-            offers_seen += 1
-            price = getattr(o, "price_cperkwh", None) or o[0]
-            oid = getattr(o, "order_id", None) or o[3]
-            qty = getattr(o, "qty_kwh", None) or o[1]
-            key = price if side == "buy" else -price
-            if best is None or key < best[0]:
-                best = (key, price, oid, qty)
-        if best is None:
-            return {"type": "post", "offers_seen": offers_seen}
-        _, price, oid, oqty = best
-        qty = min(q_qty, oqty)
-        return {
-            "type": "accept",
-            "order_id": oid,
-            "qty_kwh": qty,
-            "offers_seen": offers_seen,
-            "price": price,
-        }
+        if self.mode == "k_search":
+            best = None
+            k = max(1, int(self.k_max))
+            for o in opp[:k]:
+                offers_seen += 1
+                price = getattr(o, "price_cperkwh", None) or o[0]
+                oid = getattr(o, "order_id", None) or o[3]
+                qty = getattr(o, "qty_kwh", None) or o[1]
+                feasible = (
+                    (side == "buy" and price <= q_price)
+                    or (side == "sell" and price >= q_price)
+                )
+                if not feasible:
+                    continue
+                key = price if side == "buy" else -price
+                if best is None or key < best[0]:
+                    best = (key, price, oid, qty)
+            if best is None:
+                return {"type": "post", "offers_seen": offers_seen}
+            _, price, oid, oqty = best
+            qty = min(q_qty, oqty)
+            return {
+                "type": "accept",
+                "order_id": oid,
+                "qty_kwh": qty,
+                "offers_seen": offers_seen,
+                "price": price,
+                "side": side,
+            }
+
+        if self.mode == "k_greedy":
+            k = max(1, int(self.k_max))
+            feasible_qty = 0.0
+            for o in opp[:k]:
+                offers_seen += 1
+                price = getattr(o, "price_cperkwh", None) or o[0]
+                qty = float(getattr(o, "qty_kwh", None) or o[1])
+                feasible = (
+                    (side == "buy" and price <= q_price)
+                    or (side == "sell" and price >= q_price)
+                )
+                if feasible:
+                    take = min(q_qty - feasible_qty, qty)
+                    feasible_qty += max(0.0, take)
+                    if feasible_qty >= q_qty:
+                        feasible_qty = q_qty
+                        break
+            if feasible_qty <= 0.0:
+                return {"type": "post", "offers_seen": offers_seen}
+            return {
+                "type": "accept",
+                "qty_kwh": feasible_qty,
+                "offers_seen": offers_seen,
+                "price": q_price,
+                "side": side,
+            }
+
+        # Default: post
+        return {"type": "post", "offers_seen": offers_seen}

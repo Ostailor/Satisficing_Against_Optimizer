@@ -36,6 +36,15 @@ Analysis & metrics (Phase 5–6)
   - `bootstrap_ci(values, n_boot=2000)`
   - plotting functions: `plot_frontier`, `plot_scaling`, `plot_welfare_heatmap`.
 
+Experiment runner (Phase 6)
+- Sweep N, τ/K, seeds; emit per-interval + optional decision metrics; write a manifest:
+  - `python -m p2p.sim.exp_runner --agent satisficer --mode band --N 25,50,100 --tau 5,10,20 --seeds 3 --intervals 288 --out outputs/exp_band --instrument-decisions`
+- Control quote heterogeneity (per-interval noise and mean offsets):
+  - `--price-sigma 0.5 --buy-markup 0.5 --sell-discount 0.5` (cents/kWh)
+- Aggregate across runs into frontier/scaling CSVs:
+  - `python -m p2p.sim.aggregate --manifest outputs/exp_band/manifest.json --out-dir outputs/analysis`
+  - Produces: `frontier.csv`, `frontier_pareto.csv`, `scaling.csv`.
+
 Development
 - Pre-commit hooks (ruff + mypy + hygiene):
   - `pip install pre-commit`

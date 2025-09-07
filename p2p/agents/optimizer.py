@@ -1,13 +1,28 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
-from typing import Any
+from typing import Any, Literal
 
 from .prosumer import Prosumer
 
+Mode = Literal["single", "greedy"]
+
 
 class Optimizer(Prosumer):
-    """Optimizer that evaluates all feasible counter-offers and picks the best price."""
+    """Optimizer that scans the opposite book and chooses acceptance.
+
+    Modes:
+    - "single": pick the single best maker price (previous behavior)
+    - "greedy": submit a marketable limit at the agent's quote price to fill
+      across multiple makers up to `q_qty` (maker-price rule ensures pay at maker prices).
+    """
+
+    mode: Mode = "single"
+
+    def __init__(self, *, mode: Mode | None = None, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        if mode is not None:
+            self.mode = mode
 
     def _extract_opposite(self, snapshot: Any, side: str) -> Iterable[Any]:
         if isinstance(snapshot, dict):
@@ -25,8 +40,9 @@ class Optimizer(Prosumer):
             return {"type": "none", "solver_calls": 0}
         q_price, q_qty, side = quote
         opp = list(self._extract_opposite(order_book_snapshot, side))
+        scanned = len(opp)
 
-        # Feasible: prices that cross the quote
+        # Feasible makers under the quote limit price
         feas = []
         for o in opp:
             price = getattr(o, "price_cperkwh", None) or o[0]
@@ -36,18 +52,38 @@ class Optimizer(Prosumer):
                 feas.append((price, oid, qty))
 
         if not feas:
-            return {"type": "post", "solver_calls": 0}
+            return {"type": "post", "solver_calls": scanned}
 
-        # Choose best price: min price for buyers, max for sellers
-        if side == "buy":
-            price, oid, oqty = min(feas, key=lambda x: x[0])
-        else:
-            price, oid, oqty = max(feas, key=lambda x: x[0])
-        qty = min(q_qty, oqty)
+        if self.mode == "single":
+            # Choose best single maker price: min for buyer, max for seller
+            if side == "buy":
+                price, oid, oqty = min(feas, key=lambda x: x[0])
+            else:
+                price, oid, oqty = max(feas, key=lambda x: x[0])
+            qty = min(q_qty, oqty)
+            return {
+                "type": "accept",
+                "order_id": oid,
+                "qty_kwh": qty,
+                "price": price,
+                "solver_calls": scanned,
+                "side": side,
+            }
+
+        # Greedy multi-fill: submit a marketable limit at the quote price; fill up to q_qty
+        total_feasible = 0.0
+        for _, _, oqty in feas:
+            total_feasible += float(oqty)
+            if total_feasible >= q_qty:
+                break
+        qty = min(q_qty, total_feasible)
+        if qty <= 0:
+            return {"type": "post", "solver_calls": scanned}
         return {
             "type": "accept",
-            "order_id": oid,
+            # Side determines taker; price is the agent's quote (marketable limit)
             "qty_kwh": qty,
-            "price": price,
-            "solver_calls": 1,
+            "price": q_price,
+            "solver_calls": scanned,
+            "side": side,
         }

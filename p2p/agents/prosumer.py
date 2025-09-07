@@ -37,19 +37,35 @@ class Prosumer:
     net_position_kwh: float = 0.0
     params: dict[str, float] = field(default_factory=dict)
 
+    # Pricing heterogeneity (cents/kWh)
+    price_anchor_cents: float = DEFAULTS.get("retail_price_cperkwh", 16.3)
+    buy_markup_cents: float | None = None
+    sell_discount_cents: float | None = None
+    quote_sigma_cents: float = 0.5
+
     def __post_init__(self) -> None:
         # Deterministic per-agent RNG (non-crypto)
         seed = self.seed if self.seed is not None else (hash(self.agent_id) & 0xFFFF)
-        rng = random.Random(seed)  # noqa: S311
+        self._rng = random.Random(seed)  # noqa: S311
         steps = 24 * 60 // self.step_min
         if self.load_kwh is None:
-            self.load_kwh = household_load_profile_kwh(step_min=self.step_min, rng=rng)
+            self.load_kwh = household_load_profile_kwh(step_min=self.step_min, rng=self._rng)
         if self.pv_kwh is None:
-            nameplate = sample_pv_nameplate_kw(rng=rng)
-            self.pv_kwh = pv_profile_kwh(nameplate_kw=nameplate, step_min=self.step_min, rng=rng)
+            nameplate = sample_pv_nameplate_kw(rng=self._rng)
+            self.pv_kwh = pv_profile_kwh(
+                nameplate_kw=nameplate,
+                step_min=self.step_min,
+                rng=self._rng,
+            )
         if self.ev_kw is None:
             # Default: no EV charging in smoke mode
             self.ev_kw = [0.0] * steps
+
+        # Initialize pricing heterogeneity if not provided
+        if self.buy_markup_cents is None:
+            self.buy_markup_cents = max(0.0, min(5.0, 0.5 + self._rng.gauss(0.0, 1.0)))
+        if self.sell_discount_cents is None:
+            self.sell_discount_cents = max(0.0, min(5.0, 0.5 + self._rng.gauss(0.0, 1.0)))
 
     @property
     def dt_h(self) -> float:
@@ -74,10 +90,15 @@ class Prosumer:
         if abs(net) < eps:
             return None
         qty = abs(net)
-        # Simple price anchor
-        retail = DEFAULTS.get("retail_price_cperkwh", 16.3)
-        price = retail + (0.5 if net > 0 else -0.5)
-        side: Side = "buy" if net > 0 else "sell"
+        # Price with heterogeneity and per-interval noise
+        retail = self.price_anchor_cents
+        noise = self._rng.gauss(0.0, self.quote_sigma_cents)
+        if net > 0:
+            price = max(0.0, retail + float(self.buy_markup_cents or 0.5) + noise)
+            side: Side = "buy"
+        else:
+            price = max(0.0, retail - float(self.sell_discount_cents or 0.5) + noise)
+            side = "sell"
         return price, qty, side
 
     def decide(self, order_book_snapshot: dict, t: int) -> dict[str, Any]:

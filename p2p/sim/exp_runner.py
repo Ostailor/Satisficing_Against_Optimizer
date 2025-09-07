@@ -7,9 +7,11 @@ import os
 import platform
 import sys
 from datetime import datetime
-from typing import Any
+from typing import Any, cast
 
+from ..agents.optimizer import Mode as OptMode
 from ..agents.optimizer import Optimizer
+from ..agents.satisficer import Mode as SatMode
 from ..agents.satisficer import Satisficer
 from ..agents.zi import ZIConstrained
 from ..market.clearing import step_interval
@@ -34,32 +36,72 @@ def build_agents(
     tau: int | None,
     k: int | None,
     seed: int,
+    price_sigma: float | None = None,
+    buy_markup: float | None = None,
+    sell_discount: float | None = None,
+    optimizer_mode: str | None = None,
 ) -> list:
     agents: list = []
     for i in range(n):
         aseed = (seed * 1000003 + i) & 0x7FFFFFFF
         aid = f"{agent}_{i}"
         if agent == "optimizer":
-            agents.append(Optimizer(agent_id=aid, seed=aseed))
+            agents.append(
+                Optimizer(
+                    agent_id=aid,
+                    seed=aseed,
+                    mode=cast(OptMode, optimizer_mode or "greedy"),
+                    quote_sigma_cents=price_sigma or 0.5,
+                    buy_markup_cents=buy_markup,
+                    sell_discount_cents=sell_discount,
+                )
+            )
         elif agent == "satisficer":
             if not mode:
-                raise ValueError("mode is required for satisficer: band|k_search")
+                raise ValueError("mode is required for satisficer: band|k_search|k_greedy")
             if mode == "band":
                 if tau is None:
                     raise ValueError("tau must be provided for mode=band")
                 agents.append(
-                    Satisficer(agent_id=aid, seed=aseed, mode="band", tau_percent=float(tau))
+                    Satisficer(
+                        agent_id=aid,
+                        seed=aseed,
+                        mode="band",
+                        tau_percent=float(tau),
+                        quote_sigma_cents=price_sigma or 0.5,
+                        buy_markup_cents=buy_markup,
+                        sell_discount_cents=sell_discount,
+                    )
                 )
-            elif mode == "k_search":
+            elif mode in ("k_search", "k_greedy"):
                 if k is None:
-                    raise ValueError("K must be provided for mode=k_search")
+                    raise ValueError("K must be provided for mode=k_search/k_greedy")
                 agents.append(
-                    Satisficer(agent_id=aid, seed=aseed, mode="k_search", k_max=int(k))
+                    Satisficer(
+                        agent_id=aid,
+                        seed=aseed,
+                        mode=cast(SatMode, mode),
+                        k_max=int(k),
+                        quote_sigma_cents=price_sigma or 0.5,
+                        buy_markup_cents=buy_markup,
+                        sell_discount_cents=sell_discount,
+                    )
                 )
             else:
                 raise ValueError(f"unknown mode: {mode}")
         elif agent == "zi":
             agents.append(ZIConstrained(agent_id=aid))
+        elif agent == "learner":
+            from ..agents.learner import NoRegretLearner
+            agents.append(
+                NoRegretLearner(
+                    agent_id=aid,
+                    seed=aseed,
+                    quote_sigma_cents=price_sigma or 0.5,
+                    buy_markup_cents=buy_markup,
+                    sell_discount_cents=sell_discount,
+                )
+            )
         else:
             raise ValueError(f"unknown agent type: {agent}")
     return agents
@@ -76,9 +118,24 @@ def run_cell(
     seed: int,
     instrument_decisions: bool,
     out_dir: str,
+    price_sigma: float | None = None,
+    buy_markup: float | None = None,
+    sell_discount: float | None = None,
+    optimizer_mode: str | None = None,
 ) -> dict[str, Any]:
     # Build agents and order book
-    agents = build_agents(agent, n, mode=mode, tau=tau, k=k, seed=seed)
+    agents = build_agents(
+        agent,
+        n,
+        mode=mode,
+        tau=tau,
+        k=k,
+        seed=seed,
+        price_sigma=price_sigma,
+        buy_markup=buy_markup,
+        sell_discount=sell_discount,
+        optimizer_mode=optimizer_mode,
+    )
     ob = OrderBook()
 
     # Writers
@@ -266,8 +323,9 @@ def write_manifest(out_dir: str, config: dict[str, Any], runs: list[dict[str, An
 
 def main() -> None:
     p = argparse.ArgumentParser(description="Experiment runner: sweep N, tau, K, seeds")
-    p.add_argument("--agent", choices=["optimizer", "satisficer", "zi"], required=True)
-    p.add_argument("--mode", choices=["band", "k_search"], help="Satisficer mode")
+    # Allow learner baseline via CLI in addition to optimizer/satisficer/zi
+    p.add_argument("--agent", choices=["optimizer", "satisficer", "zi", "learner"], required=True)
+    p.add_argument("--mode", choices=["band", "k_search", "k_greedy"], help="Satisficer mode")
     p.add_argument("--N", required=True, help="Comma-separated list of N values")
     p.add_argument("--tau", help="Comma-separated tau values (percent) for mode=band")
     p.add_argument("--K", help="Comma-separated K values for mode=k_search")
@@ -275,6 +333,20 @@ def main() -> None:
     p.add_argument("--intervals", type=int, default=12, help="Number of intervals (5-min steps)")
     p.add_argument("--out", required=True, help="Output directory")
     p.add_argument("--instrument-decisions", action="store_true")
+    p.add_argument(
+        "--price-sigma",
+        type=float,
+        default=0.5,
+        help="Per-interval quote noise (cents)",
+    )
+    p.add_argument("--buy-markup", type=float, help="Mean buy markup over retail (cents)")
+    p.add_argument("--sell-discount", type=float, help="Mean sell discount below retail (cents)")
+    p.add_argument(
+        "--optimizer-mode",
+        choices=["single", "greedy"],
+        default="greedy",
+        help="Optimizer decision mode",
+    )
     args = p.parse_args()
 
     ns = parse_int_list(args.N)
@@ -289,9 +361,9 @@ def main() -> None:
                 raise SystemExit("--tau required for mode=band")
             # Build grid explicitly to keep types precise: (n, tau, None)
             grid = [(n, tau, None) for n in ns for tau in taus]
-        elif args.mode == "k_search":
+        elif args.mode in ("k_search", "k_greedy"):
             if not ks:
-                raise SystemExit("--K required for mode=k_search")
+                raise SystemExit("--K required for mode=k_search/k_greedy")
             # Grid: (n, None, k)
             grid = [(n, None, k) for n in ns for k in ks]
         else:
@@ -319,6 +391,10 @@ def main() -> None:
                 seed=seed,
                 instrument_decisions=args.instrument_decisions,
                 out_dir=cell_dir,
+                price_sigma=args.price_sigma,
+                buy_markup=args.buy_markup,
+                sell_discount=args.sell_discount,
+                optimizer_mode=(args.optimizer_mode if args.agent == "optimizer" else None),
             )
             runs.append(agg)
 
