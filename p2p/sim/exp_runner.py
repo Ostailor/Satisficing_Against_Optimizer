@@ -14,7 +14,7 @@ from ..agents.optimizer import Optimizer
 from ..agents.satisficer import Mode as SatMode
 from ..agents.satisficer import Satisficer
 from ..agents.zi import ZIConstrained
-from ..market.clearing import step_interval
+from ..market.clearing import step_interval, step_interval_call
 from ..market.order_book import OrderBook
 from .metrics import compute_quote_welfare, planner_bound_quote_welfare
 from .profiling import process_mem_mb, time_call
@@ -40,6 +40,8 @@ def build_agents(
     buy_markup: float | None = None,
     sell_discount: float | None = None,
     optimizer_mode: str | None = None,
+    hetero_tau: list[int] | None = None,
+    hetero_k: list[int] | None = None,
 ) -> list:
     agents: list = []
     for i in range(n):
@@ -60,28 +62,30 @@ def build_agents(
             if not mode:
                 raise ValueError("mode is required for satisficer: band|k_search|k_greedy")
             if mode == "band":
-                if tau is None:
-                    raise ValueError("tau must be provided for mode=band")
+                if tau is None and not hetero_tau:
+                    raise ValueError("tau or --hetero-tau must be provided for mode=band")
                 agents.append(
                     Satisficer(
                         agent_id=aid,
                         seed=aseed,
                         mode="band",
-                        tau_percent=float(tau),
+                        tau_percent=float(
+                            hetero_tau[(i % len(hetero_tau))] if hetero_tau else (tau or 5)
+                        ),
                         quote_sigma_cents=price_sigma or 0.5,
                         buy_markup_cents=buy_markup,
                         sell_discount_cents=sell_discount,
                     )
                 )
             elif mode in ("k_search", "k_greedy"):
-                if k is None:
-                    raise ValueError("K must be provided for mode=k_search/k_greedy")
+                if k is None and not hetero_k:
+                    raise ValueError("K or --hetero-K must be provided for mode=k_search/k_greedy")
                 agents.append(
                     Satisficer(
                         agent_id=aid,
                         seed=aseed,
                         mode=cast(SatMode, mode),
-                        k_max=int(k),
+                        k_max=int(hetero_k[(i % len(hetero_k))] if hetero_k else (k or 1)),
                         quote_sigma_cents=price_sigma or 0.5,
                         buy_markup_cents=buy_markup,
                         sell_discount_cents=sell_discount,
@@ -122,6 +126,11 @@ def run_cell(
     buy_markup: float | None = None,
     sell_discount: float | None = None,
     optimizer_mode: str | None = None,
+    mechanism: str = "cda",
+    feeder_cap: float | None = None,
+    info_set: str = "book",
+    hetero_tau: list[int] | None = None,
+    hetero_k: list[int] | None = None,
 ) -> dict[str, Any]:
     # Build agents and order book
     agents = build_agents(
@@ -135,6 +144,8 @@ def run_cell(
         buy_markup=buy_markup,
         sell_discount=sell_discount,
         optimizer_mode=optimizer_mode,
+        hetero_tau=hetero_tau,
+        hetero_k=hetero_k,
     )
     ob = OrderBook()
 
@@ -191,7 +202,11 @@ def run_cell(
                 for t in range(intervals):
                     # Snapshot and per-agent decision instrumentation
                     bids0, asks0 = ob.snapshot()
-                    snapshot = {"bids": bids0, "asks": asks0}
+                    snapshot = (
+                        {"bids": bids0[:1], "asks": asks0[:1]}
+                        if info_set == "ticker"
+                        else {"bids": bids0, "asks": asks0}
+                    )
                     mem_mb = process_mem_mb()
                     for a in agents:
                         act, wall_ms = time_call(a.decide, snapshot, t)
@@ -226,7 +241,16 @@ def run_cell(
                             ]
                         )
                     # Market step
-                    result = step_interval(t=t, agents=agents, ob=ob)
+                    if mechanism == "call":
+                        result = step_interval_call(
+                            t=t,
+                            agents=agents,
+                            ob=ob,
+                            info_set=info_set,
+                            feeder_limit_kw=feeder_cap,
+                        )
+                    else:
+                        result = step_interval(t=t, agents=agents, ob=ob)
                     total_posted += result.posted_kwh
                     total_traded += result.traded_kwh
                     prices = [tr.price_cperkwh for tr in result.trades_detail]
@@ -259,7 +283,16 @@ def run_cell(
                     )
         else:
             for t in range(intervals):
-                result = step_interval(t=t, agents=agents, ob=ob)
+                if mechanism == "call":
+                    result = step_interval_call(
+                        t=t,
+                        agents=agents,
+                        ob=ob,
+                        info_set=info_set,
+                        feeder_limit_kw=feeder_cap,
+                    )
+                else:
+                    result = step_interval(t=t, agents=agents, ob=ob)
                 total_posted += result.posted_kwh
                 total_traded += result.traded_kwh
                 prices = [tr.price_cperkwh for tr in result.trades_detail]
@@ -304,6 +337,9 @@ def run_cell(
         "traded_kwh": total_traded,
         "interval_csv": interval_path,
         "decision_csv": dec_path if instrument_decisions else None,
+        "mechanism": mechanism,
+        "feeder_cap_kw": feeder_cap,
+        "info_set": info_set,
     }
     return agg
 
@@ -334,6 +370,34 @@ def main() -> None:
     p.add_argument("--out", required=True, help="Output directory")
     p.add_argument("--instrument-decisions", action="store_true")
     p.add_argument(
+        "--mechanism",
+        choices=["cda", "call"],
+        default="cda",
+        help=(
+            "Market mechanism: continuous double auction (cda) or periodic call auction (call)"
+        ),
+    )
+    p.add_argument(
+        "--feeder-cap",
+        type=float,
+        default=None,
+        help="Optional feeder capacity cap in kW (applied in call auction)",
+    )
+    p.add_argument(
+        "--info-set",
+        choices=["book", "ticker"],
+        default="book",
+        help="Information set provided to agents",
+    )
+    p.add_argument(
+        "--hetero-tau",
+        help="Comma-separated tau values to sample per agent (band mode)",
+    )
+    p.add_argument(
+        "--hetero-K",
+        help="Comma-separated K values to sample per agent (k modes)",
+    )
+    p.add_argument(
         "--price-sigma",
         type=float,
         default=0.5,
@@ -352,6 +416,8 @@ def main() -> None:
     ns = parse_int_list(args.N)
     taus = parse_int_list(args.tau) if args.tau else []
     ks = parse_int_list(args.K) if args.K else []
+    hetero_tau = parse_int_list(args.hetero_tau) if getattr(args, "hetero_tau", None) else None
+    hetero_k = parse_int_list(args.hetero_K) if getattr(args, "hetero_K", None) else None
 
     # Determine grid based on mode/agent
     grid: list[tuple[int, int | None, int | None]]
@@ -395,6 +461,11 @@ def main() -> None:
                 buy_markup=args.buy_markup,
                 sell_discount=args.sell_discount,
                 optimizer_mode=(args.optimizer_mode if args.agent == "optimizer" else None),
+                mechanism=args.mechanism,
+                feeder_cap=args.feeder_cap,
+                info_set=args.info_set,
+                hetero_tau=hetero_tau,
+                hetero_k=hetero_k,
             )
             runs.append(agg)
 
