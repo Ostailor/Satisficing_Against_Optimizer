@@ -92,7 +92,7 @@ python -m p2p.sim.theory \
   --manifests outputs/exp_band_v4/manifest.json,outputs/exp_k_v4/manifest.json,outputs/exp_kg_v4/manifest.json \
   --out-dir outputs/analysis/phase9_v4_final
 
-echo "[7/7] Representative figures (final overlays and per-run plots)"
+echo "[7/8] Representative figures (final overlays and per-run plots)"
 FIG_DIR=outputs/analysis/figs_final
 mkdir -p "${FIG_DIR}"
 
