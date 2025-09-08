@@ -44,6 +44,48 @@ def _mean_w_hat(interval_csv: str) -> float:
     return float(df["W_hat"].mean())
 
 
+def _mean_W(interval_csv: str) -> float:
+    """Return mean quote-surplus welfare W across intervals for a run.
+
+    Using a mean (rather than sum) keeps runs comparable across different
+    interval lengths; ratios like R_W are invariant to the scale anyway.
+    """
+    df = pd.read_csv(interval_csv)
+    if df.empty:
+        return float("nan")
+    return float(df["W"].mean())
+
+
+def compute_runs_from_manifest(manifest_path: str) -> pd.DataFrame:
+    """Return per-run metrics (no seed aggregation) from a manifest.
+
+    Columns: N, agent, mode, tau, K, seed, w_hat, W, wall_ms, offers_seen, solver_calls.
+    """
+    man = _read_json(manifest_path)
+    runs = man.get("runs", [])
+    rows: list[dict[str, Any]] = []
+    for r in runs:
+        w_hat = _mean_w_hat(r["interval_csv"])
+        W_mean = _mean_W(r["interval_csv"])
+        wall_ms, offers_seen, solver_calls = _mean_wall_ms(r.get("decision_csv") or "")
+        rows.append(
+            {
+                "N": r["N"],
+                "agent": r["agent"],
+                "mode": r.get("mode"),
+                "tau": r.get("tau"),
+                "K": r.get("K"),
+                "seed": r.get("seed"),
+                "w_hat": w_hat,
+                "W": W_mean,
+                "wall_ms": wall_ms,
+                "offers_seen": offers_seen,
+                "solver_calls": solver_calls,
+            }
+        )
+    return pd.DataFrame(rows)
+
+
 def compute_frontier_from_manifest(manifest_path: str) -> pd.DataFrame:
     man = _read_json(manifest_path)
     runs = man.get("runs", [])

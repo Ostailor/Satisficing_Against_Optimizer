@@ -5,7 +5,11 @@ import os
 
 import pandas as pd
 
-from .aggregate import compute_frontier_from_manifest, grouped_pareto
+from .aggregate import (
+    compute_frontier_from_manifest,
+    compute_runs_from_manifest,
+    grouped_pareto,
+)
 
 
 def _split_csv_arg(arg: str | None) -> list[str]:
@@ -21,6 +25,20 @@ def combine_frontiers(manifests: list[str], labels: list[str] | None = None) -> 
         raise SystemExit("--labels must match number of --manifests (or omit labels)")
     for i, m in enumerate(manifests):
         df = compute_frontier_from_manifest(m)
+        df["label"] = labels[i] if labels else os.path.basename(os.path.dirname(m)) or f"m{i}"
+        rows.append(df)
+    if not rows:
+        return pd.DataFrame()
+    return pd.concat(rows, ignore_index=True)
+
+
+def combine_runs(manifests: list[str], labels: list[str] | None = None) -> pd.DataFrame:
+    rows: list[pd.DataFrame] = []
+    labels = labels or []
+    if labels and len(labels) != len(manifests):
+        raise SystemExit("--labels must match number of --manifests (or omit labels)")
+    for i, m in enumerate(manifests):
+        df = compute_runs_from_manifest(m)
         df["label"] = labels[i] if labels else os.path.basename(os.path.dirname(m)) or f"m{i}"
         rows.append(df)
     if not rows:
@@ -84,6 +102,10 @@ def main() -> None:
     )
     summ.to_csv(os.path.join(args.out_dir, "combined_summary.csv"), index=False)
     print(f"Wrote combined CSVs to {args.out_dir}")
+
+    # Also emit combined per-run metrics for ratio-to-optimizer plots
+    runs = combine_runs(manifests=man_paths, labels=labels)
+    runs.to_csv(os.path.join(args.out_dir, "combined_runs.csv"), index=False)
 
 
 if __name__ == "__main__":
