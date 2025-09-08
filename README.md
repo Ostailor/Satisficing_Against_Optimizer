@@ -1,8 +1,13 @@
-Satisficing vs Optimizing Agents in Peer‑to‑Peer Electricity CDAs
+⚡️ Satisficing vs Optimizing Agents in Peer‑to‑Peer Electricity CDAs
+
+![python](https://img.shields.io/badge/python-3.11-blue.svg)
+![license](https://img.shields.io/badge/license-MIT-green.svg)
+![reproducibility](https://img.shields.io/badge/reproducible-%E2%9C%93-success)
+
+> Agent‑based P2P electricity market simulator with a 5‑minute continuous double auction (CDA). We compare optimizing agents to lightweight satisficers, measuring both market welfare and per‑agent compute.
 
 Summary
-- This repository contains an agent‑based simulator for a peer‑to‑peer (P2P) electricity market that clears via a continuous double auction (CDA) every 5 minutes. We compare optimizing agents to lightweight satisficing agents and measure both welfare and compute cost.
-- Key finding: in sufficiently thick markets (e.g., N ∈ {200, 500}), a simple limited‑search satisficer achieves near‑optimizer welfare (≈100–103% of optimizer’s normalized welfare in our runs) while using ≫ less per‑agent compute.
+- In sufficiently thick markets (e.g., N ∈ {200, 500}), a simple limited‑search satisficer achieves near‑optimizer welfare (≈100–103% of optimizer’s normalized welfare in our runs) while using ≫ less per‑agent compute.
 
 Repository Structure
 - `p2p/market/`: order book and clearing (price‑time priority; maker‑price rule).
@@ -15,6 +20,16 @@ Requirements
 - Python 3.11
 - Install dependencies: `pip install -r requirements.txt`
 - Optional (local paper build): a LaTeX distribution with pdflatex + bibtex.
+
+Table of Contents
+- [Quick Start](#quick-start-smoke-test)
+- [Reproduce Main Results](#reproduce-main-results-v4)
+- [Outputs](#outputs-where-to-look)
+- [Figure Gallery](#figure-gallery)
+- [Paper](#paper-optional)
+- [Data & Integrity](#data--integrity)
+- [Citing](#citing)
+- [License](#license)
 
 Quick Start (smoke test)
 - Run a tiny smoke: `python -m p2p.sim.run --smoke --intervals 2 --agents 4`
@@ -36,6 +51,21 @@ Outputs (where to look)
   - `connector_overlay.png` — Ŵ axes with optimizer→satisficer connectors annotated by R_W.
   - `frontier_and_ratio.png` — two‑panel small multiples (planner‑bound and ratio views).
 
+Figure Gallery
+<details>
+<summary>Click to expand (renders after you generate figures)</summary>
+
+<p align="center">
+  <img src="outputs/analysis/figs_final/frontier_overlay_cda.png" alt="Frontier overlay (CDA)" width="45%"/>
+  <img src="outputs/analysis/figs_final/ratio_to_optimizer.png" alt="R_W ratio plot" width="45%"/>
+</p>
+<p align="center">
+  <img src="outputs/analysis/figs_final/connector_overlay.png" alt="Connector plot with R_W labels" width="45%"/>
+  <img src="outputs/analysis/figs_final/frontier_and_ratio.png" alt="Small multiples: Ŵ and R_W" width="45%"/>
+</p>
+
+</details>
+
 Paper (optional)
 - The reproduction script intentionally does not build LaTeX (CI typically lacks TeX).
 - To build locally: `pdflatex docs/paper.tex && bibtex paper && pdflatex docs/paper.tex && pdflatex docs/paper.tex` → `./paper.pdf`.
@@ -48,6 +78,17 @@ Citing
 - If you use this code or results, please cite the accompanying paper:
   - Om Tailor, “Satisficing Agents Achieve Near‑Optimal Welfare with Orders‑of‑Magnitude Lower Compute in Peer‑to‑Peer Electricity Markets,” 2025. (See `docs/paper.tex`.)
   - A DOI will be added here once a release is archived (e.g., Zenodo).
+  
+  BibTeX (placeholder):
+  ```bibtex
+  @misc{tailor2025satisficing,
+    author = {Tailor, Om},
+    title = {Satisficing Agents Achieve Near-Optimal Welfare with Orders-of-Magnitude Lower Compute in Peer-to-Peer Electricity Markets},
+    year = {2025},
+    howpublished = {arXiv/Working paper},
+    note = {See repository docs/paper.tex}
+  }
+  ```
 
 License
 - MIT
