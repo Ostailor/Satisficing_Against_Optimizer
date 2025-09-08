@@ -17,7 +17,7 @@ from ..agents.zi import ZIConstrained
 from ..market.clearing import step_interval, step_interval_call
 from ..market.order_book import OrderBook
 from .metrics import compute_quote_welfare, planner_bound_quote_welfare
-from .profiling import process_mem_mb, time_call
+from .profiling import process_mem_mb
 
 
 def parse_int_list(arg: str) -> list[int]:
@@ -202,8 +202,16 @@ def run_cell(
                 for t in range(intervals):
                     # Per-interval memory sample for logging
                     mem_mb = process_mem_mb()
-                    # Decision logger closure writes one row per agent
-                    def log_decision(a: Any, act: dict[str, Any] | Any, wall_ms: float) -> None:
+                    # Decision logger closure writes one row per agent.
+                    # Bind loop variables (t, mem_mb) to avoid late-binding warnings (B023).
+                    def log_decision(
+                        a: Any,
+                        act: dict[str, Any] | Any,
+                        wall_ms: float,
+                        *,
+                        t_bound: int = t,
+                        mem_mb_bound: float = mem_mb,
+                    ) -> None:
                         if isinstance(act, dict):
                             action_type = str(act.get("type", "none"))
                             offers_seen = int(act.get("offers_seen", 0))
@@ -221,7 +229,7 @@ def run_cell(
                         dwriter.writerow(
                             [
                                 "cell",
-                                t,
+                                t_bound,
                                 a.agent_id,
                                 a.__class__.__name__,
                                 action_type,
@@ -231,7 +239,7 @@ def run_cell(
                                 solver_calls,
                                 learners_steps,
                                 f"{wall_ms:.3f}",
-                                f"{mem_mb:.2f}",
+                                f"{mem_mb_bound:.2f}",
                             ]
                         )
                     # Market step using single-timed decisions

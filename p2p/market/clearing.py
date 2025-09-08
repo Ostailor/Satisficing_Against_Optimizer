@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable, cast
+from typing import Any, cast
 
 from ..agents.prosumer import Prosumer, Side
 from .order_book import Order, OrderBook, Trade

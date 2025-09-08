@@ -13,7 +13,7 @@ from ..agents.zi import ZIConstrained
 from ..market.clearing import step_interval
 from ..market.order_book import OrderBook
 from .metrics import RunSummary, compute_quote_welfare, planner_bound_quote_welfare
-from .profiling import process_mem_mb, time_call
+from .profiling import process_mem_mb
 
 
 def run_smoke(
@@ -91,7 +91,15 @@ def run_smoke(
             # Optional decision logger to avoid double decision calls
             decision_logger = None
             if instrument and writer is not None:
-                def _log(a: Any, act: dict[str, Any] | Any, wall_ms: float) -> None:
+                # Bind loop variables (t, mem_mb) to avoid late-binding warnings (B023)
+                def _log(
+                    a: Any,
+                    act: dict[str, Any] | Any,
+                    wall_ms: float,
+                    *,
+                    t_bound: int = t,
+                    mem_mb_bound: float = mem_mb,
+                ) -> None:
                     if isinstance(act, dict):
                         action_type = str(act.get("type", "none"))
                         offers_seen = int(act.get("offers_seen", 0))
@@ -107,7 +115,7 @@ def run_smoke(
                     writer.writerow(
                         [
                             run_id,
-                            t,
+                            t_bound,
                             a.agent_id,
                             agent_type,
                             action_type,
@@ -117,7 +125,7 @@ def run_smoke(
                             solver_calls,
                             learners_steps,
                             f"{wall_ms:.3f}",
-                            f"{mem_mb:.2f}",
+                            f"{mem_mb_bound:.2f}",
                         ]
                     )
                 decision_logger = _log

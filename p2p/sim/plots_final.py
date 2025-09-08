@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import os
-from typing import Iterable
 
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -23,8 +23,17 @@ def plot_frontier_overlay_cda(overlay_csv: str, out_png: str) -> None:
         w_hat_mean=("w_hat_mean", "mean"), wall_ms_mean=("wall_ms_mean", "mean")
     )
     for (agent, mode), g in groups.groupby(["agent", "mode"], as_index=False):
-        m = markers.get(mode or "", "o") if agent != "optimizer" else markers["optimizer"]
-        plt.plot(g["wall_ms_mean"], g["w_hat_mean"], marker=m, linestyle="-", label=f"{agent}:{mode or 'na'}")
+        m = (
+            markers.get(mode or "", "o") if agent != "optimizer" else markers["optimizer"]
+        )
+        label_str = f"{agent}:{mode or 'na'}"
+        plt.plot(
+            g["wall_ms_mean"],
+            g["w_hat_mean"],
+            marker=m,
+            linestyle="-",
+            label=label_str,
+        )
     plt.xlabel("Per-agent wall time (ms)")
     plt.ylabel("Normalized welfare (Ŵ)")
     plt.legend(ncol=2, fontsize=8)
@@ -72,7 +81,10 @@ def plot_robustness_call(kg_overlay_csv: str, out_png: str) -> None:
     df = df[(df["agent"] == "satisficer") & (df["mode"] == "k_greedy")]
     plt.figure(figsize=(6.5, 4.5))
     for label, g in df.groupby("label"):
-        g2 = g.groupby("N", as_index=False).agg(w_hat_mean=("w_hat_mean", "mean"), wall_ms_mean=("wall_ms_mean", "mean"))
+        g2 = g.groupby("N", as_index=False).agg(
+            w_hat_mean=("w_hat_mean", "mean"),
+            wall_ms_mean=("wall_ms_mean", "mean"),
+        )
         g2 = g2.sort_values("N")
         plt.plot(g2["wall_ms_mean"], g2["w_hat_mean"], marker="o", linestyle="-", label=label)
     plt.xlabel("Per-agent wall time (ms)")
@@ -84,28 +96,59 @@ def plot_robustness_call(kg_overlay_csv: str, out_png: str) -> None:
 
 
 def main() -> None:
-    p = argparse.ArgumentParser(description="Generate final publication figures from aggregated CSVs")
-    p.add_argument("--out-dir", default="outputs/analysis/figs_final", help="Directory for output figures")
+    logging.basicConfig(level=logging.INFO)
+    p = argparse.ArgumentParser(
+        description="Generate final publication figures from aggregated CSVs"
+    )
+    p.add_argument(
+        "--out-dir",
+        default="outputs/analysis/figs_final",
+        help="Directory for output figures",
+    )
     # Default paths based on the final pipeline
-    p.add_argument("--overlay-cda", default="outputs/analysis/overlay_v4/combined_frontier_pareto_by_N.csv")
-    p.add_argument("--overlay-kg-call", default="outputs/analysis/overlay_kg_robust_v4/combined_frontier_pareto_by_N.csv")
+    p.add_argument(
+        "--overlay-cda",
+        default="outputs/analysis/overlay_v4/combined_frontier_pareto_by_N.csv",
+    )
+    p.add_argument(
+        "--overlay-kg-call",
+        default=(
+            "outputs/analysis/overlay_kg_robust_v4/combined_frontier_pareto_by_N.csv"
+        ),
+    )
     p.add_argument("--opt-scaling", default="outputs/analysis/exp_opt_v4/scaling.csv")
     p.add_argument("--kg-scaling", default="outputs/analysis/exp_kg_v4/scaling.csv")
     p.add_argument("--band-frontier", default="outputs/analysis/exp_band_v4/frontier.csv")
-    p.add_argument("--overlay-kg-ticker", default="outputs/analysis/overlay_kg_ticker_v4/combined_frontier_pareto_by_N.csv")
+    p.add_argument(
+        "--overlay-kg-ticker",
+        default=(
+            "outputs/analysis/overlay_kg_ticker_v4/combined_frontier_pareto_by_N.csv"
+        ),
+    )
     args = p.parse_args()
 
     _ensure_dir(args.out_dir)
-    plot_frontier_overlay_cda(args.overlay_cda, os.path.join(args.out_dir, "frontier_overlay_cda.png"))
-    plot_scaling(args.opt_scaling, args.kg_scaling, os.path.join(args.out_dir, "scaling_opt_vs_kgreedy.png"))
-    plot_heatmap_band(args.band_frontier, os.path.join(args.out_dir, "heatmap_band.png"))
-    plot_robustness_call(args.overlay_kg_call, os.path.join(args.out_dir, "robustness_call.png"))
+    plot_frontier_overlay_cda(
+        args.overlay_cda, os.path.join(args.out_dir, "frontier_overlay_cda.png")
+    )
+    plot_scaling(
+        args.opt_scaling, args.kg_scaling, os.path.join(args.out_dir, "scaling_opt_vs_kgreedy.png")
+    )
+    plot_heatmap_band(
+        args.band_frontier, os.path.join(args.out_dir, "heatmap_band.png")
+    )
+    plot_robustness_call(
+        args.overlay_kg_call, os.path.join(args.out_dir, "robustness_call.png")
+    )
     # Ticker overlay (book vs ticker for k_greedy)
     try:
         df = pd.read_csv(args.overlay_kg_ticker)
         plt.figure(figsize=(6.5, 4.5))
         for label, g in df.groupby("label"):
-            g2 = g.groupby("N", as_index=False).agg(w_hat_mean=("w_hat_mean", "mean"), wall_ms_mean=("wall_ms_mean", "mean"))
+            g2 = g.groupby("N", as_index=False).agg(
+                w_hat_mean=("w_hat_mean", "mean"),
+                wall_ms_mean=("wall_ms_mean", "mean"),
+            )
             g2 = g2.sort_values("N")
             plt.plot(g2["wall_ms_mean"], g2["w_hat_mean"], marker="o", linestyle="-", label=label)
         plt.xlabel("Per-agent wall time (ms)")
@@ -114,9 +157,9 @@ def main() -> None:
         plt.tight_layout()
         plt.savefig(os.path.join(args.out_dir, "overlay_kg_ticker.png"), dpi=200)
         plt.close()
-    except Exception:
-        pass
-    print(f"Wrote figures to {args.out_dir}")
+    except Exception as exc:  # noqa: BLE001
+        logging.warning("Could not generate overlay_kg_ticker: %s", exc)
+    logging.info("Wrote figures to %s", args.out_dir)
 
 
 if __name__ == "__main__":

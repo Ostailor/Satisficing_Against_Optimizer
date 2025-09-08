@@ -88,60 +88,87 @@ def per_cell(df: pd.DataFrame) -> pd.DataFrame:
 def diminishing_returns(df_cells: pd.DataFrame) -> pd.DataFrame:
     parts = []
     # Band over tau
-    for (N,), g in df_cells[df_cells["mode"] == "band"].groupby(["N"], dropna=False):
+    for (n,), g in df_cells[df_cells["mode"] == "band"].groupby(["N"], dropna=False):
         g2 = g.sort_values(["tau"]).reset_index(drop=True)
         for i, row in g2.iterrows():
             prev = g2.iloc[i - 1] if i > 0 else None
             parts.append(
                 {
                     "mode": "band",
-                    "N": N,
+                    "N": n,
                     "param": "tau",
                     "value": row["tau"],
                     "w_hat_mean": row["w_hat_mean"],
                     "wall_ms_mean": row["wall_ms_mean"],
                     "accept_rate": row["accept_rate"],
-                    "d_w_hat": (row["w_hat_mean"] - (prev["w_hat_mean"] if prev is not None else np.nan)),
-                    "d_wall_ms": (row["wall_ms_mean"] - (prev["wall_ms_mean"] if prev is not None else np.nan)),
-                    "d_accept": (row["accept_rate"] - (prev["accept_rate"] if prev is not None else np.nan)),
+                    "d_w_hat": (
+                        row["w_hat_mean"]
+                        - (prev["w_hat_mean"] if prev is not None else np.nan)
+                    ),
+                    "d_wall_ms": (
+                        row["wall_ms_mean"]
+                        - (prev["wall_ms_mean"] if prev is not None else np.nan)
+                    ),
+                    "d_accept": (
+                        row["accept_rate"]
+                        - (prev["accept_rate"] if prev is not None else np.nan)
+                    ),
                 }
             )
     # K-search over K
-    for (N,), g in df_cells[df_cells["mode"] == "k_search"].groupby(["N"], dropna=False):
+    for (n,), g in df_cells[df_cells["mode"] == "k_search"].groupby(["N"], dropna=False):
         g2 = g.sort_values(["K"]).reset_index(drop=True)
         for i, row in g2.iterrows():
             prev = g2.iloc[i - 1] if i > 0 else None
             parts.append(
                 {
                     "mode": "k_search",
-                    "N": N,
+                    "N": n,
                     "param": "K",
                     "value": row["K"],
                     "w_hat_mean": row["w_hat_mean"],
                     "wall_ms_mean": row["wall_ms_mean"],
                     "accept_rate": row["accept_rate"],
-                    "d_w_hat": (row["w_hat_mean"] - (prev["w_hat_mean"] if prev is not None else np.nan)),
-                    "d_wall_ms": (row["wall_ms_mean"] - (prev["wall_ms_mean"] if prev is not None else np.nan)),
-                    "d_accept": (row["accept_rate"] - (prev["accept_rate"] if prev is not None else np.nan)),
+                    "d_w_hat": (
+                        row["w_hat_mean"]
+                        - (prev["w_hat_mean"] if prev is not None else np.nan)
+                    ),
+                    "d_wall_ms": (
+                        row["wall_ms_mean"]
+                        - (prev["wall_ms_mean"] if prev is not None else np.nan)
+                    ),
+                    "d_accept": (
+                        row["accept_rate"]
+                        - (prev["accept_rate"] if prev is not None else np.nan)
+                    ),
                 }
             )
     # K-greedy over K
-    for (N,), g in df_cells[df_cells["mode"] == "k_greedy"].groupby(["N"], dropna=False):
+    for (n,), g in df_cells[df_cells["mode"] == "k_greedy"].groupby(["N"], dropna=False):
         g2 = g.sort_values(["K"]).reset_index(drop=True)
         for i, row in g2.iterrows():
             prev = g2.iloc[i - 1] if i > 0 else None
             parts.append(
                 {
                     "mode": "k_greedy",
-                    "N": N,
+                    "N": n,
                     "param": "K",
                     "value": row["K"],
                     "w_hat_mean": row["w_hat_mean"],
                     "wall_ms_mean": row["wall_ms_mean"],
                     "accept_rate": row["accept_rate"],
-                    "d_w_hat": (row["w_hat_mean"] - (prev["w_hat_mean"] if prev is not None else np.nan)),
-                    "d_wall_ms": (row["wall_ms_mean"] - (prev["wall_ms_mean"] if prev is not None else np.nan)),
-                    "d_accept": (row["accept_rate"] - (prev["accept_rate"] if prev is not None else np.nan)),
+                    "d_w_hat": (
+                        row["w_hat_mean"]
+                        - (prev["w_hat_mean"] if prev is not None else np.nan)
+                    ),
+                    "d_wall_ms": (
+                        row["wall_ms_mean"]
+                        - (prev["wall_ms_mean"] if prev is not None else np.nan)
+                    ),
+                    "d_accept": (
+                        row["accept_rate"]
+                        - (prev["accept_rate"] if prev is not None else np.nan)
+                    ),
                 }
             )
     return pd.DataFrame(parts)
@@ -164,12 +191,24 @@ def offers_vs_time_regression(df_cells: pd.DataFrame) -> pd.DataFrame:
             slope = float(coeffs[0])
         else:
             slope, r2 = float("nan"), float("nan")
-        rows.append({"agent": agent, "mode": mode, "slope_ms_per_offer": slope, "R2": r2, "points": int(x.size)})
+        rows.append(
+            {
+                "agent": agent,
+                "mode": mode,
+                "slope_ms_per_offer": slope,
+                "R2": r2,
+                "points": int(x.size),
+            }
+        )
     return pd.DataFrame(rows)
 
 
 def main() -> None:
-    p = argparse.ArgumentParser(description="Phase 9 theory checks: acceptance vs tau/K; offers vs time; diminishing returns")
+    p = argparse.ArgumentParser(
+        description=(
+            "Phase 9 theory checks: acceptance vs tau/K; offers vs time; diminishing returns"
+        )
+    )
     p.add_argument("--manifests", required=True, help="Comma-separated manifest.json paths")
     p.add_argument("--out-dir", default="outputs/analysis/phase9", help="Output directory")
     args = p.parse_args()
