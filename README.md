@@ -51,32 +51,13 @@ Outputs (where to look)
   - `connector_overlay.png` — Ŵ axes with optimizer→satisficer connectors annotated by R_W.
   - `frontier_and_ratio.png` — two‑panel small multiples (planner‑bound and ratio views).
 
-Figure Gallery
-<details>
-<summary>Click to expand (renders after you generate figures)</summary>
-
-<p align="center">
-  <img src="outputs/analysis/figs_final/frontier_overlay_cda.png" alt="Frontier overlay (CDA)" width="45%"/>
-  <img src="outputs/analysis/figs_final/ratio_to_optimizer.png" alt="R_W ratio plot" width="45%"/>
-</p>
-<p align="center">
-  <img src="outputs/analysis/figs_final/connector_overlay.png" alt="Connector plot with R_W labels" width="45%"/>
-  <img src="outputs/analysis/figs_final/frontier_and_ratio.png" alt="Small multiples: Ŵ and R_W" width="45%"/>
-</p>
-
-</details>
-
-Paper (optional)
-- The reproduction script intentionally does not build LaTeX (CI typically lacks TeX).
-- To build locally: `pdflatex docs/paper.tex && bibtex paper && pdflatex docs/paper.tex && pdflatex docs/paper.tex` → `./paper.pdf`.
-
 Data & Integrity
 - Each experiment directory contains a `manifest.json` (config, seeds, environment, git hash).
 - Overlays and figures are derived from these manifests; analysis keeps all runs and reports bootstrap CIs across seeds.
 
 Citing
 - If you use this code or results, please cite the accompanying paper:
-  - Om Tailor, “Satisficing Agents Achieve Near‑Optimal Welfare with Orders‑of‑Magnitude Lower Compute in Peer‑to‑Peer Electricity Markets,” 2025. (See `docs/paper.tex`.)
+  - Om Tailor, “Satisficing Agents Achieve Near‑Optimal Welfare with Orders‑of‑Magnitude Lower Compute in Peer‑to‑Peer Electricity Markets,” 2025. (See `paper.pdf`.)
   - A DOI will be added here once a release is archived (e.g., Zenodo).
   
   BibTeX (placeholder):
