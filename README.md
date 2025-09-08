@@ -1,56 +1,57 @@
-P2P Market Simulator (CDA): Satisficing vs Optimizing Agents
+Satisficing vs Optimizing Agents in Peer‑to‑Peer Electricity CDAs
 
-Overview
-- Agent-based P2P electricity market with continuous double auction (CDA) at 5-minute cadence.
-- Compare optimizing agents vs satisficing agents on efficiency–compute trade-offs with rigorous instrumentation.
+Summary
+- This repository contains an agent‑based simulator for a peer‑to‑peer (P2P) electricity market that clears via a continuous double auction (CDA) every 5 minutes. We compare optimizing agents to lightweight satisficing agents and measure both welfare and compute cost.
+- Key finding: in sufficiently thick markets (e.g., N ∈ {200, 500}), a simple limited‑search satisficer achieves near‑optimizer welfare (≈100–103% of optimizer’s normalized welfare in our runs) while using ≫ less per‑agent compute.
 
-Status
-- Phase 1 complete: price–time priority CDA with maker-price rule, partial fills, cancel/modify, and tests.
-- Phase 2 complete: load/PV/EV profiles, battery model (no-op dispatch placeholder), per-interval energy tests.
-- Phase 3 complete: decision rules — satisficer (τ-band and K-search) and optimizer baselines with unit tests.
-- Phase 4 complete: decision instrumentation (wall time, offers_seen, solver_calls, memory) with CSV logging and overhead test (<3%).
+Repository Structure
+- `p2p/market/`: order book and clearing (price‑time priority; maker‑price rule).
+- `p2p/agents/`: agent implementations (optimizer; satisficers: τ‑band, K‑search/greedy; baselines: ZI‑C, learner).
+- `p2p/sim/`: experiment runner, metrics, aggregation, overlays, plotting, theory checks.
+- `outputs/`: generated CSVs and figures (created by scripts below).
+- `docs/`: LaTeX paper (`docs/paper.tex`) and references.
 
-Quickstart
-- Smoke run: `python -m p2p.sim.run --smoke --intervals 2 --agents 4`
-- Run tests: `pytest -q`
-- Lint/type: `ruff check . && mypy p2p`
+Requirements
+- Python 3.11
+- Install dependencies: `pip install -r requirements.txt`
+- Optional (local paper build): a LaTeX distribution with pdflatex + bibtex.
 
-Instrumentation (Phase 4)
-- Enable instrumentation on smoke runs:
-  - `python -m p2p.sim.run --smoke --intervals 2 --agents 4 --instrument --metrics-out outputs/metrics_smoke.csv`
-- CSV columns written per agent per interval:
-  - `run_id, t, agent_id, agent_type, action_type, price_cperkwh, qty_kwh, offers_seen, solver_calls, learners_steps, wall_ms, mem_mb`
-- Overhead check: see `p2p/tests/test_instrumentation.py` (ensures timer overhead < 3%).
+Quick Start (smoke test)
+- Run a tiny smoke: `python -m p2p.sim.run --smoke --intervals 2 --agents 4`
+- Run tests and static checks: `pytest -q && ruff check . && mypy p2p`
 
-Code layout
-- `p2p/market/`: order book and clearing logic.
-- `p2p/agents/`: prosumer + strategy agents (optimizer, satisficer, ZI, learner).
-- `p2p/env/`: profiles (load, PV) and device models (battery, EV charging).
-- `p2p/sim/`: runner, metrics, profiling utilities (instrumentation), and analysis helpers.
+Reproduce Main Results (v4)
+- Full pipeline (experiments → aggregation → overlays → figures):
+  - `bash scripts/run_final_v4.sh`
+  - This archives any existing `outputs/` to `outputs_YYYYMMDD-HHMMSS/` and regenerates everything.
+- From existing outputs only (overlays + figures):
+  - `bash scripts/repro_figs_v4.sh`
+  - Add `--full` to rerun the entire pipeline first: `bash scripts/repro_figs_v4.sh --full`
 
-Analysis & metrics (Phase 5–6)
-- Per-interval metrics CSV (W, W_bound, Ŵ, price stats): set an env var and run smoke or experiments:
-  - `P2P_INTERVAL_METRICS=outputs/interval_metrics.csv python -m p2p.sim.run --smoke --intervals 12 --agents 10`
-- Quote-based welfare: implemented in `p2p/sim/metrics.py` (`compute_quote_welfare`, `planner_bound_quote_welfare`).
-- Analysis helpers in `p2p/sim/analysis.py`:
-  - `bootstrap_ci(values, n_boot=2000)`
-  - plotting functions: `plot_frontier`, `plot_scaling`, `plot_welfare_heatmap`.
+Outputs (where to look)
+- Aggregated CSVs: `outputs/analysis/**`
+- Final figures: `outputs/analysis/figs_final/`, including:
+  - `frontier_overlay_cda.png` — normalized welfare Ŵ vs per‑agent ms.
+  - `ratio_to_optimizer.png` — R_W = W_sat / W_opt vs per‑agent ms (0.90–0.98 band shaded).
+  - `connector_overlay.png` — Ŵ axes with optimizer→satisficer connectors annotated by R_W.
+  - `frontier_and_ratio.png` — two‑panel small multiples (planner‑bound and ratio views).
 
-Experiment runner (Phase 6)
-- Sweep N, τ/K, seeds; emit per-interval + optional decision metrics; write a manifest:
-  - `python -m p2p.sim.exp_runner --agent satisficer --mode band --N 25,50,100 --tau 5,10,20 --seeds 3 --intervals 288 --out outputs/exp_band --instrument-decisions`
-- Control quote heterogeneity (per-interval noise and mean offsets):
-  - `--price-sigma 0.5 --buy-markup 0.5 --sell-discount 0.5` (cents/kWh)
-- Aggregate across runs into frontier/scaling CSVs:
-  - `python -m p2p.sim.aggregate --manifest outputs/exp_band/manifest.json --out-dir outputs/analysis`
-  - Produces: `frontier.csv`, `frontier_pareto.csv`, `scaling.csv`.
+Paper (optional)
+- The reproduction script intentionally does not build LaTeX (CI typically lacks TeX).
+- To build locally: `pdflatex docs/paper.tex && bibtex paper && pdflatex docs/paper.tex && pdflatex docs/paper.tex` → `./paper.pdf`.
 
-Development
-- Pre-commit hooks (ruff + mypy + hygiene):
-  - `pip install pre-commit`
-  - `pre-commit install`
-  - Run once on all files: `pre-commit run -a`
-- CI runs ruff, mypy, and pytest on every push (see `.github/workflows/ci.yml`).
+Data & Integrity
+- Each experiment directory contains a `manifest.json` (config, seeds, environment, git hash).
+- Overlays and figures are derived from these manifests; analysis keeps all runs and reports bootstrap CIs across seeds.
+
+Citing
+- If you use this code or results, please cite the accompanying paper:
+  - Om Tailor, “Satisficing Agents Achieve Near‑Optimal Welfare with Orders‑of‑Magnitude Lower Compute in Peer‑to‑Peer Electricity Markets,” 2025. (See `docs/paper.tex`.)
+  - A DOI will be added here once a release is archived (e.g., Zenodo).
 
 License
 - MIT
+
+Releases (for dataset/DOI)
+- Package artifacts for a release: `bash scripts/package_release_artifacts.sh`
+- Produces `dist/` tarballs: manifests, analysis CSVs, and figures, plus SHA‑256 checksums.
