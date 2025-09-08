@@ -45,9 +45,13 @@ class Optimizer(Prosumer):
         # Feasible makers under the quote limit price
         feas = []
         for o in opp:
-            price = getattr(o, "price_cperkwh", None) or o[0]
-            oid = getattr(o, "order_id", None) or o[3]
-            qty = getattr(o, "qty_kwh", None) or o[1]
+            # Extract fields robustly: treat 0/0.0 as valid values, only fall back on None
+            p = getattr(o, "price_cperkwh", None)
+            price = p if p is not None else o[0]
+            oid_attr = getattr(o, "order_id", None)
+            oid = oid_attr if oid_attr is not None else o[3]
+            q = getattr(o, "qty_kwh", None)
+            qty = q if q is not None else o[1]
             if (side == "buy" and price <= q_price) or (side == "sell" and price >= q_price):
                 feas.append((price, oid, qty))
 

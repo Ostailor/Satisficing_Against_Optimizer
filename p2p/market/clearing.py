@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import cast
+from typing import Any, Callable, cast
 
 from ..agents.prosumer import Prosumer, Side
 from .order_book import Order, OrderBook, Trade
@@ -21,8 +21,20 @@ class ClearingResult:
     book_asks_start: list[Order]
 
 
-def step_interval(t: int, agents: list[Prosumer], ob: OrderBook) -> ClearingResult:
-    """One interval: agents inspect book and either accept or post; CDA matches (maker-price)."""
+def step_interval(
+    t: int,
+    agents: list[Prosumer],
+    ob: OrderBook,
+    *,
+    info_set: str = "book",
+    decision_logger: Callable[[Prosumer, dict[str, Any] | Any, float], None] | None = None,
+) -> ClearingResult:
+    """One interval: agents inspect book and either accept or post; CDA matches (maker-price).
+
+    - If `decision_logger` is provided, this function will time and log each agent's
+      decide() call via the callback and reuse that action (no second decide()).
+    - `info_set`: 'book' for full book snapshots or 'ticker' for top-of-book only.
+    """
     posted = 0.0
     posted_buy = 0.0
     posted_sell = 0.0
@@ -53,10 +65,22 @@ def step_interval(t: int, agents: list[Prosumer], ob: OrderBook) -> ClearingResu
         for o in _asks0
     ]
     for a in agents:
-        # Allow accept if agent chooses
+        # Build snapshot per info set
         bids0, asks0 = ob.snapshot()
-        snapshot = {"bids": bids0, "asks": asks0}
-        act = a.decide(snapshot, t)
+        snapshot = (
+            {"bids": bids0[:1], "asks": asks0[:1]}
+            if info_set == "ticker"
+            else {"bids": bids0, "asks": asks0}
+        )
+        # Decide once; optionally time and log via callback
+        if decision_logger is not None:
+            from ..sim.profiling import time_call
+
+            act, wall_ms = time_call(a.decide, snapshot, t)
+            decision_logger(a, act, wall_ms)
+        else:
+            act = a.decide(snapshot, t)
+        # Allow accept if agent chooses
         if isinstance(act, dict) and act.get("type") == "accept":
             side = cast(Side, act.get("side", "buy"))
             price = float(act.get("price", 0.0))
@@ -221,6 +245,7 @@ def step_interval_call(
     ob: OrderBook,
     *,
     info_set: str = "book",
+    decision_logger: Callable[[Prosumer, dict[str, Any] | Any, float], None] | None = None,
     feeder_limit_kw: float | None = None,
 ) -> ClearingResult:
     """Periodic call auction variant: collect actions, then batch match once per interval.
@@ -267,7 +292,14 @@ def step_interval_call(
         # information set
         b, k = ob.snapshot()
         snap = {"bids": b[:1], "asks": k[:1]} if info_set == "ticker" else {"bids": b, "asks": k}
-        act = a.decide(snap, t)
+        # Decide once; optionally time/log and reuse action
+        if decision_logger is not None:
+            from ..sim.profiling import time_call
+
+            act, wall_ms = time_call(a.decide, snap, t)
+            decision_logger(a, act, wall_ms)
+        else:
+            act = a.decide(snap, t)
         # In a call auction, treat accept as a post (marketable limit) to be cleared in batch.
         if isinstance(act, dict) and act.get("type") in {"accept", "post"}:
             price = float(act.get("price") or 0.0)
@@ -299,8 +331,31 @@ def step_interval_call(
     # Union and batch match once
     union_bids = book_bids_start + posted_bids
     union_asks = book_asks_start + posted_asks
+    # Important: match on copies so book_bids_start/posted_* remain immutable for metrics.
+    union_bids_copy = [
+        Order(
+            order_id=o.order_id,
+            price_cperkwh=o.price_cperkwh,
+            qty_kwh=o.qty_kwh,
+            side=o.side,
+            agent_id=o.agent_id,
+            arrival_seq=o.arrival_seq,
+        )
+        for o in union_bids
+    ]
+    union_asks_copy = [
+        Order(
+            order_id=o.order_id,
+            price_cperkwh=o.price_cperkwh,
+            qty_kwh=o.qty_kwh,
+            side=o.side,
+            agent_id=o.agent_id,
+            arrival_seq=o.arrival_seq,
+        )
+        for o in union_asks
+    ]
     trades, residual_bids, residual_asks = _batch_match(
-        union_bids, union_asks, feeder_limit_kw=feeder_limit_kw
+        union_bids_copy, union_asks_copy, feeder_limit_kw=feeder_limit_kw
     )
 
     # Update OB state for next interval

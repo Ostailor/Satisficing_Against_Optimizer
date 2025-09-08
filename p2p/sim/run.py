@@ -86,14 +86,12 @@ def run_smoke(
         )
     try:
         for t in range(intervals):
-            # Sample process memory once per interval
+            # Sample process memory once per interval for logging
             mem_mb = process_mem_mb() if instrument else 0.0
-            # Snapshot for agent decisions (dict form)
-            bids, asks = ob.snapshot()
-            snapshot: dict[str, Any] = {"bids": bids, "asks": asks}
+            # Optional decision logger to avoid double decision calls
+            decision_logger = None
             if instrument and writer is not None:
-                for a in agents:
-                    act, wall_ms = time_call(a.decide, snapshot, t)
+                def _log(a: Any, act: dict[str, Any] | Any, wall_ms: float) -> None:
                     if isinstance(act, dict):
                         action_type = str(act.get("type", "none"))
                         offers_seen = int(act.get("offers_seen", 0))
@@ -122,7 +120,8 @@ def run_smoke(
                             f"{mem_mb:.2f}",
                         ]
                     )
-            result = step_interval(t=t, agents=agents, ob=ob)
+                decision_logger = _log
+            result = step_interval(t=t, agents=agents, ob=ob, decision_logger=decision_logger)
             total_posted += result.posted_kwh
             total_traded += result.traded_kwh
             if interval_writer is not None:

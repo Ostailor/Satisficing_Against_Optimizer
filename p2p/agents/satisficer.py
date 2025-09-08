@@ -60,7 +60,8 @@ class Satisficer(Prosumer):
             band = self.tau_percent / 100.0
             for o in opp:
                 offers_seen += 1
-                price = getattr(o, "price_cperkwh", None) or o[0]
+                p = getattr(o, "price_cperkwh", None)
+                price = p if p is not None else o[0]
                 if q_price == 0:
                     continue
                 crosses = (
@@ -68,8 +69,10 @@ class Satisficer(Prosumer):
                     or (side == "sell" and price >= q_price)
                 )
                 if crosses and abs(price - q_price) / q_price <= band:
-                    oid = getattr(o, "order_id", None) or o[3]
-                    qty = min(q_qty, getattr(o, "qty_kwh", None) or o[1])
+                    oid_attr = getattr(o, "order_id", None)
+                    oid = oid_attr if oid_attr is not None else o[3]
+                    oq = getattr(o, "qty_kwh", None)
+                    qty = min(q_qty, oq if oq is not None else o[1])
                     return {
                         "type": "accept",
                         "order_id": oid,
@@ -85,9 +88,12 @@ class Satisficer(Prosumer):
             k = max(1, int(self.k_max))
             for o in opp[:k]:
                 offers_seen += 1
-                price = getattr(o, "price_cperkwh", None) or o[0]
-                oid = getattr(o, "order_id", None) or o[3]
-                qty = getattr(o, "qty_kwh", None) or o[1]
+                p = getattr(o, "price_cperkwh", None)
+                price = p if p is not None else o[0]
+                oid_attr = getattr(o, "order_id", None)
+                oid = oid_attr if oid_attr is not None else o[3]
+                q = getattr(o, "qty_kwh", None)
+                qty = q if q is not None else o[1]
                 feasible = (
                     (side == "buy" and price <= q_price)
                     or (side == "sell" and price >= q_price)
@@ -115,8 +121,10 @@ class Satisficer(Prosumer):
             feasible_qty = 0.0
             for o in opp[:k]:
                 offers_seen += 1
-                price = getattr(o, "price_cperkwh", None) or o[0]
-                qty = float(getattr(o, "qty_kwh", None) or o[1])
+                p = getattr(o, "price_cperkwh", None)
+                price = p if p is not None else o[0]
+                oq = getattr(o, "qty_kwh", None)
+                qty = float(oq if oq is not None else o[1])
                 feasible = (
                     (side == "buy" and price <= q_price)
                     or (side == "sell" and price >= q_price)

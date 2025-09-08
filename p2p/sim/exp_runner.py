@@ -200,16 +200,10 @@ def run_cell(
                     ]
                 )
                 for t in range(intervals):
-                    # Snapshot and per-agent decision instrumentation
-                    bids0, asks0 = ob.snapshot()
-                    snapshot = (
-                        {"bids": bids0[:1], "asks": asks0[:1]}
-                        if info_set == "ticker"
-                        else {"bids": bids0, "asks": asks0}
-                    )
+                    # Per-interval memory sample for logging
                     mem_mb = process_mem_mb()
-                    for a in agents:
-                        act, wall_ms = time_call(a.decide, snapshot, t)
+                    # Decision logger closure writes one row per agent
+                    def log_decision(a: Any, act: dict[str, Any] | Any, wall_ms: float) -> None:
                         if isinstance(act, dict):
                             action_type = str(act.get("type", "none"))
                             offers_seen = int(act.get("offers_seen", 0))
@@ -240,17 +234,24 @@ def run_cell(
                                 f"{mem_mb:.2f}",
                             ]
                         )
-                    # Market step
+                    # Market step using single-timed decisions
                     if mechanism == "call":
                         result = step_interval_call(
                             t=t,
                             agents=agents,
                             ob=ob,
                             info_set=info_set,
+                            decision_logger=log_decision,
                             feeder_limit_kw=feeder_cap,
                         )
                     else:
-                        result = step_interval(t=t, agents=agents, ob=ob)
+                        result = step_interval(
+                            t=t,
+                            agents=agents,
+                            ob=ob,
+                            info_set=info_set,
+                            decision_logger=log_decision,
+                        )
                     total_posted += result.posted_kwh
                     total_traded += result.traded_kwh
                     prices = [tr.price_cperkwh for tr in result.trades_detail]
@@ -261,7 +262,11 @@ def run_cell(
                     welfare = compute_quote_welfare(result.trades_detail)
                     bids_union = result.book_bids_start + result.posted_bids
                     asks_union = result.book_asks_start + result.posted_asks
-                    w_bound, _ = planner_bound_quote_welfare(bids=bids_union, asks=asks_union)
+                    w_bound, _ = planner_bound_quote_welfare(
+                        bids=bids_union,
+                        asks=asks_union,
+                        feeder_limit_kw=feeder_cap,
+                    )
                     w_hat = (welfare / w_bound) if w_bound > 0 else 0.0
                     unserved = max(0.0, result.posted_buy_kwh - result.traded_kwh)
                     curtail = max(0.0, result.posted_sell_kwh - result.traded_kwh)
@@ -292,7 +297,7 @@ def run_cell(
                         feeder_limit_kw=feeder_cap,
                     )
                 else:
-                    result = step_interval(t=t, agents=agents, ob=ob)
+                    result = step_interval(t=t, agents=agents, ob=ob, info_set=info_set)
                 total_posted += result.posted_kwh
                 total_traded += result.traded_kwh
                 prices = [tr.price_cperkwh for tr in result.trades_detail]
@@ -303,7 +308,9 @@ def run_cell(
                 welfare = compute_quote_welfare(result.trades_detail)
                 bids_union = result.book_bids_start + result.posted_bids
                 asks_union = result.book_asks_start + result.posted_asks
-                w_bound, _ = planner_bound_quote_welfare(bids=bids_union, asks=asks_union)
+                w_bound, _ = planner_bound_quote_welfare(
+                    bids=bids_union, asks=asks_union, feeder_limit_kw=feeder_cap
+                )
                 w_hat = (welfare / w_bound) if w_bound > 0 else 0.0
                 unserved = max(0.0, result.posted_buy_kwh - result.traded_kwh)
                 curtail = max(0.0, result.posted_sell_kwh - result.traded_kwh)
