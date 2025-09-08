@@ -6,6 +6,7 @@ import os
 
 import matplotlib.pyplot as plt
 import pandas as pd
+
 from .analysis import bootstrap_ci
 
 
@@ -140,21 +141,22 @@ def plot_ratio_to_optimizer(runs_csv: str, out_png: str) -> None:
         ci_hi.append(hi)
     cell["R_W_lo"] = ci_lo
     cell["R_W_hi"] = ci_hi
-    for (mode, N), g in cell.groupby(["mode", "N" ], as_index=False):
+    for (mode, n_val), g in cell.groupby(["mode", "N"], as_index=False):
         marker = mode_markers.get(mode or "", "o")
-        yerr = [g["R_W_mean"] - g["R_W_lo"], g["R_W_hi"] - g["R_W_mean"]]
         # Build concise label with parameter
         if mode == "band":
             param = [f"tau={int(x)}" if pd.notna(x) else "tau=na" for x in g["tau"]]
         else:
             param = [f"K={int(x)}" if pd.notna(x) else "K=na" for x in g["K"]]
-        labels = [f"{mode}:{p}:N={N}" for p in param]
+        labels = [f"{mode}:{p}:N={n_val}" for p in param]
         # Plot each row to attach distinct labels cleanly
         for i in range(len(g)):
+            yerr_low = g.iloc[i]["R_W_mean"] - g.iloc[i]["R_W_lo"]
+            yerr_high = g.iloc[i]["R_W_hi"] - g.iloc[i]["R_W_mean"]
             plt.errorbar(
                 [g.iloc[i]["wall_ms_mean"]],
                 [g.iloc[i]["R_W_mean"]],
-                yerr=[[g.iloc[i]["R_W_mean"] - g.iloc[i]["R_W_lo"]], [g.iloc[i]["R_W_hi"] - g.iloc[i]["R_W_mean"]]],
+                yerr=[[yerr_low], [yerr_high]],
                 fmt=marker,
                 capsize=3,
                 linestyle="none",
@@ -180,12 +182,12 @@ def plot_connector_overlay(overlay_csv: str, runs_csv: str, out_png: str) -> Non
     df_front = pd.read_csv(overlay_csv)
     df_runs = _join_ratio_to_opt(runs_csv)
     # Aggregate W means per cell for annotation
-    Wagg = (
+    w_agg = (
         df_runs.groupby(["N", "agent", "mode", "tau", "K"], as_index=False, dropna=False)
         .agg(W_mean=("W", "mean"))
         .copy()
     )
-    Wopt = (
+    w_opt_agg = (
         df_runs.groupby(["N"], as_index=False)
         .agg(W_opt_mean=("W_opt", "mean"))
         .copy()
@@ -199,14 +201,14 @@ def plot_connector_overlay(overlay_csv: str, runs_csv: str, out_png: str) -> Non
     # For each satisficer cell, plot point and connector to same-N optimizer
     sat_front = df_front[df_front["agent"] == "satisficer"].copy()
     for _, row in sat_front.iterrows():
-        N = row["N"]
+        n_val = row["N"]
         mode = row["mode"]
         tau = row.get("tau")
-        K = row.get("K")
+        k_val = row.get("K")
         # Point
         plt.scatter(row["wall_ms_mean"], row["w_hat_mean"], s=30, alpha=0.9)
         # Connector
-        opt_match = opt_front[opt_front["N"] == N]
+        opt_match = opt_front[opt_front["N"] == n_val]
         if not opt_match.empty:
             x0 = float(opt_match.iloc[0]["wall_ms_mean"])  # optimizer
             y0 = float(opt_match.iloc[0]["w_hat_mean"])
@@ -214,10 +216,19 @@ def plot_connector_overlay(overlay_csv: str, runs_csv: str, out_png: str) -> Non
             y1 = float(row["w_hat_mean"])
             plt.plot([x0, x1], [y0, y1], color="gray", linewidth=0.8, alpha=0.6)
             # Annotate ratio R_W using aggregated W means
-            w_sat = Wagg[(Wagg["N"] == N) & (Wagg["mode"] == mode) & (Wagg["tau"] == tau) & (Wagg["K"] == K)]
-            w_opt = Wopt[Wopt["N"] == N]
+            cond = (
+                (w_agg["N"] == n_val)
+                & (w_agg["mode"] == mode)
+                & (w_agg["tau"] == tau)
+                & (w_agg["K"] == k_val)
+            )
+            w_sat = w_agg[cond]
+            w_opt = w_opt_agg[w_opt_agg["N"] == n_val]
             if not w_sat.empty and not w_opt.empty:
-                rw = float(w_sat.iloc[0]["W_mean"]) / float(w_opt.iloc[0]["W_opt_mean"]) if float(w_opt.iloc[0]["W_opt_mean"]) > 0 else float("nan")
+                w_opt_mean = float(w_opt.iloc[0]["W_opt_mean"])
+                rw = float("nan")
+                if w_opt_mean > 0:
+                    rw = float(w_sat.iloc[0]["W_mean"]) / w_opt_mean
                 plt.text(
                     (x0 + x1) / 2,
                     (y0 + y1) / 2,
@@ -254,9 +265,11 @@ def plot_small_multiples(overlay_csv: str, runs_csv: str, out_png: str) -> None:
     # Right: R_W vs ms
     ax2 = axs[1]
     mode_markers = {"band": "o", "k_search": "^", "k_greedy": "s"}
-    for (mode, N), g in df_ratio.groupby(["mode", "N"], as_index=False):
+    for (mode, n_val), g in df_ratio.groupby(["mode", "N"], as_index=False):
         marker = mode_markers.get(mode or "", "o")
-        ax2.scatter(g["wall_ms"], g["R_W"], marker=marker, alpha=0.7, label=f"{mode or 'na'}:N={N}")
+        ax2.scatter(
+            g["wall_ms"], g["R_W"], marker=marker, alpha=0.7, label=f"{mode or 'na'}:N={n_val}"
+        )
     ax2.axhspan(0.90, 0.98, color="gray", alpha=0.10, zorder=0)
     ax2.set_xlabel("Per-agent wall time (ms)")
     ax2.set_ylabel("R_W = W_sat / W_opt")
@@ -344,9 +357,8 @@ def main() -> None:
         plot_connector_overlay(
             args.overlay_cda, args.overlay_runs, os.path.join(args.out_dir, "connector_overlay.png")
         )
-        plot_small_multiples(
-            args.overlay_cda, args.overlay_runs, os.path.join(args.out_dir, "frontier_and_ratio.png")
-        )
+        out_path = os.path.join(args.out_dir, "frontier_and_ratio.png")
+        plot_small_multiples(args.overlay_cda, args.overlay_runs, out_path)
     except Exception as exc:  # noqa: BLE001
         logging.warning("Could not generate ratio/connector/small-multiple plots: %s", exc)
     logging.info("Wrote figures to %s", args.out_dir)

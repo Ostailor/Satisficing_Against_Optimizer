@@ -44,7 +44,7 @@ def _mean_w_hat(interval_csv: str) -> float:
     return float(df["W_hat"].mean())
 
 
-def _mean_W(interval_csv: str) -> float:
+def _mean_w(interval_csv: str) -> float:
     """Return mean quote-surplus welfare W across intervals for a run.
 
     Using a mean (rather than sum) keeps runs comparable across different
@@ -66,7 +66,7 @@ def compute_runs_from_manifest(manifest_path: str) -> pd.DataFrame:
     rows: list[dict[str, Any]] = []
     for r in runs:
         w_hat = _mean_w_hat(r["interval_csv"])
-        W_mean = _mean_W(r["interval_csv"])
+        w_mean = _mean_w(r["interval_csv"])
         wall_ms, offers_seen, solver_calls = _mean_wall_ms(r.get("decision_csv") or "")
         rows.append(
             {
@@ -77,7 +77,7 @@ def compute_runs_from_manifest(manifest_path: str) -> pd.DataFrame:
                 "K": r.get("K"),
                 "seed": r.get("seed"),
                 "w_hat": w_hat,
-                "W": W_mean,
+                "W": w_mean,
                 "wall_ms": wall_ms,
                 "offers_seen": offers_seen,
                 "solver_calls": solver_calls,
