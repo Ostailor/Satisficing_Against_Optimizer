@@ -35,3 +35,8 @@ docs/sn-basic.bst
 docs/sn-jnl.cls
 submission_zip/
 submission_manuscript.zip
+cover_letter.aux
+cover_letter.log
+cover_letter.out
+cover_letter.pdf
+docs/cover_letter.tex
