@@ -5,7 +5,6 @@ __pycache__/
 dist/
 build/
 *.egg-info/
-outputs/
 outputs_20250906-222930/
 outputs_20250907-215305/
 *.DS_Store
@@ -24,3 +23,13 @@ docs/Makefile
 docs/references.bib
 docs/runs.md
 docs/pilot.md
+paper.pdf
+paper_springer.aux
+paper_springer.bbl
+paper_springer.blg
+paper_springer.log
+paper_springer.out
+docs/paper_springer.tex
+docs/paper_body_extracted.tex
+docs/sn-basic.bst
+docs/sn-jnl.cls

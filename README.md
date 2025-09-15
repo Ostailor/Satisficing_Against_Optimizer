@@ -66,8 +66,6 @@ Citing
     author = {Tailor, Om},
     title = {Satisficing Agents Achieve Near-Optimal Welfare with Orders-of-Magnitude Lower Compute in Peer-to-Peer Electricity Markets},
     year = {2025},
-    howpublished = {arXiv/Working paper},
-    note = {See repository docs/paper.tex}
   }
   ```
 

@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Final end-to-end run script (v4) for honors thesis
+# Final end-to-end run script (v4)
 # - Runs core CDA experiments (optimizer, band, k_search, k_greedy)
 # - Runs robustness pilots (ticker-only, call auction, call+feeder cap)
 # - Aggregates frontiers and scaling
 # - Builds overlays
-# - Runs Phase 9 theory checks
+# - Runs theory checks
 # - Generates a few representative figures
 #
 # Pricing realism:
